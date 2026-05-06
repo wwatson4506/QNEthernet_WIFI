@@ -31,7 +31,7 @@ This define in QNEthernet_opts.h switches betweeen the two:
 ```
 Two new examples specific to the CYW4343W have been added:
 - cyw43_ping.ino
-- and cyw43_scan.ino
+- cyw43_scan.ino
 
 The wifi scan function still needs work. It will fail sometimes when doing repeated scans.
 
