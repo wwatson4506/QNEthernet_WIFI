@@ -529,12 +529,12 @@ raw_sendto_if_src(struct raw_pcb *pcb, struct pbuf *p, const ip_addr_t *dst_ip,
 #else /* LWIP_MULTICAST_TX_OPTIONS */
   ttl = pcb->ttl;
 #endif /* LWIP_MULTICAST_TX_OPTIONS */
-printf("***************** rawDump(q->payload,q->tot_len) ************************\n");
-rawDump((uint8_t *)q->payload,q->tot_len);
-printf("***********************************************************\n");
-printf("***************** rawDump(p-payload,p->tot_len) ************************\n");
-rawDump((uint8_t *)p->payload,p->tot_len);
-printf("*******************************************************\n");
+//printf("***************** rawDump(q->payload,q->tot_len) ************************\n");
+//rawDump((uint8_t *)q->payload,q->tot_len);
+//printf("***********************************************************\n");
+//printf("***************** rawDump(p-payload,p->tot_len) ************************\n");
+//rawDump((uint8_t *)p->payload,p->tot_len);
+//printf("*******************************************************\n");
 
   NETIF_SET_HINTS(netif, &pcb->netif_hints);
   err = ip_output_if(q, src_ip, dst_ip, ttl, pcb->tos, pcb->protocol, netif);
