@@ -1,6 +1,17 @@
 # This is a version of QNEthernet for use with the CYW4343W WIFI card. Most QNEthernet examples except for ping.ino and simplePing.ino are tested and seem to work.
 # THIS IS WORK IN PROGRESS. NO GUARANTEES AT All!! THE ORIGINAL AUTHOR IS NOT RESPONSIBLE FOR ANY OF THIS MODIFIED CODE!!
 
+ ## PINOUT:
+TEENSY 4.1   WIFI Board
+- 23 --------> clk
+- 22 --------> cmd
+- 17 --------> D2
+- 16 --------> D3
+- 41 --------> D1
+- 40 --------> D0
+- 34 --------> INT
+- 33 --------> WL_ON
+
 ## To use the examples with the wifi card you must first edit the "QNEthernet/src/qnethernet/drivers/cyw4343w/src/secrets.h" file:
 ```
 // The secrets file
