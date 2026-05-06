@@ -1,4 +1,4 @@
-# This is a version of QNEthernet for use with the CYW4343W WIFI card. All examples except for ping.ino and simplePing.ino are tested and seem to work.
+# This is a version of QNEthernet for use with the CYW4343W WIFI card. Most QNEthernet examples except for ping.ino and simplePing.ino are tested and seem to work.
 # THIS IS WORK IN PROGRESS. NO GUARANTEES AT All!! THE ORIGINAL AUTHOR IS NOT RESPONSIBLE FOR ANY OF THIS MODIFIED CODE!!
 
 ## To use the examples with the wifi card you must first edit the "QNEthernet/src/qnethernet/drivers/cyw4343w/src/secrets.h" file:
@@ -29,10 +29,14 @@ This define in QNEthernet_opts.h switches betweeen the two:
 #define ARDUINO_TEENSY41_CYW4343W 1
 #endif
 ```
-TODO:  Add wifi scan function.
+Two new examples specific to the CYW4343W have been added:
+- cyw43_ping.ino
+- and cyw43_scan.ino
 
-## Again this is work in progress.
+The wifi scan function still needs work. It will fail sometimes when doing repeated scans.
 
+### Again this is work in progress and not much more effort will be put into it by myself until I know that further hardware development is happening.
+### Those with the other hardware and CYW4343x chip types at hand can do testing. I am curious to see what is working and what is not. Hardly any of the Arduino style Ethernet library has been tested yet. Much more work needs to be done.
 
 [![Sponsor @ssilverman button](https://img.shields.io/badge/Sponsor-30363d.svg?logo=githubsponsors&logoColor=EA4AAA)](https://github.com/sponsors/ssilverman "Sponsor @ssilverman on GitHub")
 or
