@@ -30,7 +30,8 @@ constexpr uint32_t kDHCPTimeout = 15000;  // 15 seconds
 
 constexpr unsigned long kPingInterval = 1000;  // 1 second
 
-constexpr char kHostname[]{"wwatsond1.local"};
+constexpr char kHostname[]{"arduino.cc"};
+constexpr char kHostname[]{"pjrc.com"};
 
 // --------------------------------------------------------------------------
 //  Program State
