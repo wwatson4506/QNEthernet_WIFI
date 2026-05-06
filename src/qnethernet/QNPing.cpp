@@ -167,12 +167,12 @@ bool Ping::send(const PingData& req) {
   raw_set_multicast_ttl(pcb_, req.ttl);
 #endif  // LWIP_MULTICAST_TX_OPTIONS
 
-printf("***************** qpingDump(pcb_,sizeof(pcb_)) ************************\n");
-qpingDump((uint8_t *)pcb_,sizeof(pcb_));
-printf("***********************************************************\n");
-printf("***************** qpingDump(p,p->tot_len) ************************\n");
-qpingDump((uint8_t *)p,p->tot_len);
-printf("*******************************************************\n");
+//printf("***************** qpingDump(pcb_,sizeof(pcb_)) ************************\n");
+//qpingDump((uint8_t *)pcb_,sizeof(pcb_));
+//printf("***********************************************************\n");
+//printf("***************** qpingDump(p,p->tot_len) ************************\n");
+//qpingDump((uint8_t *)p,p->tot_len);
+//printf("*******************************************************\n");
 
   err = raw_sendto(pcb_, p, &ipaddr);
   if (err != ERR_OK) {
