@@ -369,7 +369,15 @@ bool W4343WCard::cardCMD53(uint32_t functionNumber, uint32_t registerAddress, ui
   bool return_value = false;
   bool blockMode = false;
   uint8_t opCode = 1;
-    // CMD53 argument format:
+
+  // Check for and gaurd against a nullptr.
+  if(buffer == nullptr) {
+	if (logOutput) Serial.printf(" buffer == nullptr\n");
+	return false;
+  }
+
+	
+	// CMD53 argument format:
     // [31]    - Read/Write flag 
     // [30:28] - Function number (0-7)
     // [27]    - Block mode (0 for byte mode, 1 for block mode)
