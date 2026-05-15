@@ -23,6 +23,7 @@ using namespace qindesign::network;
 //  Configuration
 // --------------------------------------------------------------------------
 
+const char timeServer[] = "time.nist.gov";
 constexpr uint32_t kDHCPTimeout = 15000;  // 15 seconds
 
 constexpr uint16_t kNTPPort = 123;
@@ -109,7 +110,7 @@ void setup() {
 
   // Send the packet
   printf("Sending SNTP request to the gateway...");
-  if (!udp.send(Ethernet.gatewayIP(), kNTPPort, buf, 48)) {
+  if (!udp.send(timeServer, kNTPPort, buf, 48)) {
     printf("ERROR.");
   }
   printf("\r\n");
