@@ -30,25 +30,30 @@
 
 using namespace qindesign::network;
 
+Ping ping;
 Event evnt;
 
 // After testing finished,
 void waitForInput(); // to be removed later.
 extern void cwydump(unsigned char *memory, unsigned int len); // To be removed later.
 
-#define PING_DATA_SIZE      64 //32
-#define PING_COUNT     0 // Set to zero for continuous run.
-
+constexpr size_t pingDataSize   = 64; //32
+constexpr uint8_t pingTTL       = 64;
+constexpr uint16_t pingCount    = 10; // Set to zero for continuous run.
+constexpr uint16_t pingId       = 0x514E;
 constexpr uint32_t kDHCPTimeout = 15000;  // 15 seconds
 
+//******************************************
+// Un-comment one and only one host to ping.
+//******************************************
 //constexpr char kHostname[]{"pjrc.com"};
 //constexpr char kHostname[]{"pool.ntp.org"};
 constexpr char kHostname[]{"arduino.cc"};
 //constexpr char kHostname[]{"www.raspberrypi.org"};
 
 IPAddress pingIP;
-BYTE ping_data[PING_DATA_SIZE];
-err_t err = ERR_OK;
+uint8_t ping_data[pingDataSize];
+uint16_t seq = 0; 
 
 void setup()
 {
@@ -67,14 +72,18 @@ void setup()
   for(uint8_t i=0; i<sizeof(ping_data); i++) ping_data[i] = i;
   
   // Setup ARP and ICMP handelers.
-  evnt.add_event_handler(arp_event_handler);
-  evnt.add_event_handler(icmp_event_handler);
+  evnt.add_event_handler(evnt.arp_event_handler);
+  evnt.add_event_handler(evnt.icmp_event_handler);
+
+  Ethernet.setHostname("wwatsonT41");
 
   Serial.printf("Starting Ethernet with DHCP...\r\n");
   if (!Ethernet.begin()) {
     Serial.printf("Failed to start Ethernet\r\n");
     return;
   }
+
+  printf("hostname = %s\n",Ethernet.hostname());
 
   // Get local MAC address and show it.
   uint8_t mac[6];
@@ -110,14 +119,18 @@ void setup()
     Serial.printf("HALTING!! Faied to get host IP: errno=%d\r\n", errno);
     while(1) {;}
   }
-  initPing();
-  err = get_gw_mac(netif_default);
-  if(err != ERR_OK) Serial.printf("Get Gateway MAC FAILED: %d\n",err);
+  ping.initPing();
 }
 
 void loop() {
-  IPADDR pingIPcnvrt = {pingIP[0], pingIP[1], pingIP[2], pingIP[3]};
-  if(cyw43_ping(pingIPcnvrt, ping_data, PING_COUNT) == false)
+  PING_DATA pingReq { .dip = {pingIP[0], pingIP[1], pingIP[2], pingIP[3]},
+	                  .ttl = pingTTL,
+	                  .ident = pingId,
+	                  .seq = 0,
+	                  .data = ping_data,
+	                  .dataSize = pingDataSize};
+
+  if(ping.cyw43_ping(pingReq, pingCount) == false)
 	Serial.printf("Ping Failed\n");
   waitForInput();
 }
