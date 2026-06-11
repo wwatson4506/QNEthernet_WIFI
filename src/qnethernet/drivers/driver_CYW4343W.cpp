@@ -19,6 +19,8 @@
 #include "cyw4343w/src/join.h"
 #include "cyw4343w/src/secrets.h"
 
+Join qnjoin;
+
 void cywdump(unsigned char *memory, unsigned int len);
 void waitMyInput(void);
 
@@ -109,14 +111,14 @@ void driver_get_system_mac(uint8_t mac[ETH_HWADDR_LEN]) {
 
 bool driver_get_mac(uint8_t mac[ETH_HWADDR_LEN]) {
 //  printf("driver_get_mac\n");
-  if(join_check() != JOIN_OK) return false;
+  if(qnjoin.join_check() != JOIN_OK) return false;
   wifiCard.getMACAddress((uint8_t *)mac);
   return true;
 }
 
 bool driver_set_mac(const uint8_t mac[ETH_HWADDR_LEN]) {
 //  printf("driver_set_mac\n");
-  if(join_check() != JOIN_OK) return false;
+  if(qnjoin.join_check() != JOIN_OK) return false;
   wifiCard.getMACAddress((uint8_t *)mac);
   return true;
 }
@@ -160,20 +162,20 @@ bool driver_init(void) {
   }
   wifiCard.postInitSettings();
   // Add our event handler to the array of event handlers.
-  evt.add_event_handler(join_event_handler);
+  evt.add_event_handler(qnjoin.join_event_handler);
   delayMicroseconds(1000);
   ustimeout(&poll_ticks, 0);
 
   // Use "secrets.h" to set MY_SSID, MY_PASSPHRASE, SECURITY.
-  if(!join_start(MY_SSID, MY_PASSPHRASE, SECURITY)) {
+  if(!qnjoin.join_start(MY_SSID, MY_PASSPHRASE, SECURITY)) {
     printf("Error: can't start network join\n");
     s_initState = kInitStateNoHardware;
     return false;
   }
   // Keep polling until link and join happens.
-  while((link_check() != LINK_OK) && (join_check() != JOIN_OK)) {
+  while((qnjoin.link_check() != LINK_OK) && (qnjoin.join_check() != JOIN_OK)) {
     evt.pollEvents();
-    join_state_poll(MY_SSID, MY_PASSPHRASE, SECURITY);
+    qnjoin.join_state_poll(MY_SSID, MY_PASSPHRASE, SECURITY);
   }
   s_initState = kInitStateInitialized;
   printf("Initialization Done\n");
@@ -182,7 +184,7 @@ bool driver_init(void) {
 
 void driver_deinit() {
   printf("driver_deinit\n");
-  join_stop();
+  qnjoin.join_stop();
 }
 
 // driver_proc_input() NOT WORKING with ping!!!!
@@ -213,10 +215,10 @@ void driver_poll(struct netif *netif) {
   if(ustimeout(&poll_ticks, EVENT_POLL_USEC)) {
 //printf("driver_poll()\n");
     evt.pollEvents();
-    join_state_poll(MY_SSID, MY_PASSPHRASE, SECURITY);
+    qnjoin.join_state_poll(MY_SSID, MY_PASSPHRASE, SECURITY);
     ustimeout(&poll_ticks, 0);
   }
-  uint8_t link_up = join_check() ? 1 : 0;
+  uint8_t link_up = qnjoin.join_check() ? 1 : 0;
   if (netif_is_link_up(netif) != link_up) {
     if (link_up) {
       printf("Setting link up\n");
