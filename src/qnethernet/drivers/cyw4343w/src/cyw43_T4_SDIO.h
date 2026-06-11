@@ -5,20 +5,12 @@
 
 #include <stddef.h>
 #include "WiFiCardInfo.h"
+#include "misc_defs.h"
 #include "ioctl_T4.h"
-//#include "ip.h"
+#include "event.h"
 
-#define FIFO_SDIO 0
-#define DMA_SDIO 1
-#define USE_SDIO2 2
 // Set true if using with QNethernet library.
 #define USE_CYW4343W true
-
-#define MACLEN      6           /* Ethernet (MAC) address length */
-// Check if MAC address is non-zero
-#define IS_MAC_NONZERO(a) (a[0] || a[1] || a[2] || a[3] || a[4] || a[5])
-// Copy a MAC address
-#define MAC_CPY(a, b) memcpy(a, b, MACLEN)
 
 /**
  *  maximum initialization clock rate.

@@ -19,14 +19,21 @@
 #define JOIN_TRY_USEC       10000000
 #define JOIN_RETRY_USEC     10000000
 
-bool join_start(const char *ssID, const char *passphrase, int security);
-bool join_stop(void);
-bool join_restart(const char *ssid, const char *passwd, int security);
-int join_event_handler(EVENT_INFO *eip);
-void join_state_poll(const char *ssid, const char *passwd, int security);
-int link_check(void);
-int join_check(void);
-int ip_event_handler(EVENT_INFO *eip);
+class Join {
+public:
+  bool join_start(const char *ssID, const char *passphrase, int security);
+  bool join_stop(void);
+  bool join_restart(const char *ssid, const char *passwd, int security);
+  static int join_event_handler(EVENT_INFO *eip);
+  void join_state_poll(const char *ssid, const char *passwd, int security);
+  int link_check(void);
+  int join_check(void);
+  int ip_event_handler(EVENT_INFO *eip);
 
+private:
+  wl_country_t country_struct = {.country_abbrev=COUNTRY, .rev=COUNTRY_REV, .ccode=COUNTRY};
+  const uint8_t mcast_addr[10*6] = {0x01,0x00,0x00,0x00,0x01,0x00,0x5E,0x00,0x00,0xFB};
+
+};
 // EOF
 #endif

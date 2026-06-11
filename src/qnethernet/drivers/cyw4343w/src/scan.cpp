@@ -30,7 +30,7 @@ brcmf_escan_params_le scan_params = {
     }
 };
 
-int ScanNetworks() {
+int Scan::ScanNetworks() {
   uint8_t resp1[256];
   EVT_STR escan_evts[] = ESCAN_EVTS;
   uint8_t eventbuf[1600];

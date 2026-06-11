@@ -31,7 +31,6 @@
 #include "WiFiCardInfo.h"
 #include "SdioCard.h"
 #include "SdioRegs.h"
-#include "misc_defs.h"
 #include "ioctl_T4.h"
 
 //Remove this define to use built-in internal LPO in 4343W
@@ -64,6 +63,7 @@ void cwydump(unsigned char *memory, unsigned int len);
 /* MAC address */
 #define MACLEN      6           /* Ethernet (MAC) address length */
 uint8_t my_mac[6];
+MACADDR gw_mac;
 int display_mode = 0;
 //extern T4_SDIO sdio;
 
@@ -368,16 +368,14 @@ bool W4343WCard::cardCMD53_write(uint32_t functionNumber, uint32_t registerAddre
 bool W4343WCard::cardCMD53(uint32_t functionNumber, uint32_t registerAddress, uint8_t * buffer, uint32_t size, bool write, bool logOutput) {
   bool return_value = false;
   bool blockMode = false;
-  uint8_t opCode = 1;
-
-  // Check for and gaurd against a nullptr.
+  
   if(buffer == nullptr) {
 	if (logOutput) Serial.printf(" buffer == nullptr\n");
 	return false;
   }
 
-	
-	// CMD53 argument format:
+  uint8_t opCode = 1;
+    // CMD53 argument format:
     // [31]    - Read/Write flag 
     // [30:28] - Function number (0-7)
     // [27]    - Block mode (0 for byte mode, 1 for block mode)
@@ -757,7 +755,7 @@ void W4343WCard::onWLIRQInterruptHandler()
 {
   dataISRReceived = true;
   //Yeah yeah, no Serial in ISRs, I know....
-//  Serial.println(SER_MAGENTA "WL_IRQ OOB Interrupt" SER_RESET);
+  //Serial.println(SER_MAGENTA "WL_IRQ OOB Interrupt" SER_RESET);
 }
 
 void W4343WCard::onDataInterruptHandler()
@@ -965,15 +963,16 @@ bool W4343WCard::begin(bool useSDIO2, int8_t wlOnPin, int8_t wlIrqPin, int8_t ex
   //Setup pins
   ////////////
 
-  ///////////////////
-  //In-band interrupt
-  ///////////////////
-  //Attach in-band interrupt to DAT1 (GPIO mode only) - not in use, yet
-  //TODO pin 34 is DAT1 on DB5. Need to change depending on device. Eventually use lower level attachment, avoiding pin
-  //#define DAT1_INTERRUPT_PIN 34
-  //Serial.printf(SER_TRACE "Attaching IB interrupt to pin %d\n" SER_RESET, DAT1_INTERRUPT_PIN);
-  //pinMode(DAT1_INTERRUPT_PIN, INPUT);
-  //attachInterrupt(digitalPinToInterrupt(DAT1_INTERRUPT_PIN), onDataInterruptHandler, FALLING);
+  ////////////////////
+  // In-band interrupt
+  ////////////////////
+  // Attach in-band interrupt to DAT1 (GPIO mode only) - not in use, yet
+  // TODO pin 34 is DAT1 on DB5 (pin #41 on T41). Need to change depending
+  // on device. Eventually use lower level attachment, avoiding pin
+//  #define DAT1_INTERRUPT_PIN 41 //34
+  // Serial.printf(SER_TRACE "Attaching IB interrupt to pin %d\n" SER_RESET, DAT1_INTERRUPT_PIN);
+//  pinMode(DAT1_INTERRUPT_PIN, INPUT);
+//  attachInterrupt(digitalPinToInterrupt(DAT1_INTERRUPT_PIN), onDataInterruptHandler, FALLING);
   //////////////////////////////////
   //out-of-band interrupt on INT pin
   //////////////////////////////////
@@ -1097,10 +1096,10 @@ bool W4343WCard::begin(bool useSDIO2, int8_t wlOnPin, int8_t wlIrqPin, int8_t ex
   cardCMD53_read(SD_FUNC_BAK, SB_32BIT_WIN, u32d.bytes, 2);
   Serial.printf(SER_GREEN "*************\nCardID: %ld\n*************\n" SER_RESET, u32d.uint32 & 0xFFFF);
 
+#if USE_CYW4343W == false // Do 'wifiSetup' here else do 'wifiSetup' in QNEthernet.
   //============================
   // Setup the WiFi card (1dx) =
   //============================
-#if USE_CYW4343W == false
   wifiSetup();
 #endif
   return true;

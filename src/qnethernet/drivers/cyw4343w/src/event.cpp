@@ -29,81 +29,76 @@
 #include "event.h"
 #include "SdioRegs.h"
 #include "misc_defs.h"
+//#include "ping.h"
 
 using namespace qindesign::network;
 
-#define MAX_HANDLERS    20
-#define MAX_EVENT_STATUS 16
-
-//T4_SDIO sdio;
-
 static int num_handlers = 0;
-event_handler_t event_handlers[MAX_HANDLERS];
-WORD event_ports[MAX_HANDLERS];
-extern void cwydump(unsigned char *memory, unsigned int len);
-
-IPADDR my_ip; 
-extern uint8_t my_mac[6];
-
-extern W4343WCard wifiCard;
-extern int display_mode;
-uint8_t rxdata[RXDATA_LEN];
-BYTE txbuff[TXDATA_LEN];
-uint8_t eventbuf[1600];
-uint8_t event_mask[EVENT_MAX / 8];
-Event local;
-sdpcm_header_t iehh;
-
-ETH_EVENT_FRAME *eep = (ETH_EVENT_FRAME *)eventbuf;
-EVT_STR *currentE_evts;
-
-const char * event_status[MAX_EVENT_STATUS] = {
-    "SUCCESS","FAIL","TIMEOUT","NO_NETWORK","ABORT","NO_ACK",
-    "UNSOLICITED","ATTEMPT","PARTIAL","NEWSCAN","NEWASSOC",
-    "11HQUIET","SUPPRESS","NOCHANS","CCXFASTRM","CS_ABORT" };
-
-char ioctl_event_hdr_fields[] =  
-    "2:len 2: 1:seq 1:chan 1: 1:hdrlen 1:flow 1:credit";
-
-// Event field displays
-char eth_hdr_fields[]   = "6:dest 6:srce 2;type";
-char event_hdr_fields[] = "2;sub 2;len 1: 3;oui 2;usr";
-char event_msg_fields[] = "2;ver 2;flags 4;type 4;status 4;reason 4:auth 4;dlen 6;addr 18:";
-
-// ARP stuff
-//ARPKT *arp = (ARPKT *)&eep->event.hdr;
-//char arp_hdr_fields[]   = "2;hrd 2;pro 1;hln 1;pln 2;op 6:smac 4;sip 6:dmac 4;dip";
-
-#define NUM_ARP_ENTRIES 10
-ARP_ENTRY arp_entries[NUM_ARP_ENTRIES];
-int arp_idx;
-
-MACADDR bcast_mac={0xff,0xff,0xff,0xff,0xff,0xff};
-EVENT_INFO event_info;
-
-TX_MSG tx_msg = {.sdpcm = {.chan=SDPCM_CHAN_DATA, .hdrlen=sizeof(SDPCM_HDR)+2},
-                 .bdc =   {.flags=0x20}};
-
-extern IOCTL_MSG ioctl_txmsg, ioctl_rxmsg;
-uint8_t sd_tx_seq;
+static IPADDR my_ip;
 uint32_t ping_tx_time, ping_rx_time;
 
+Event local;
+static event_handler_t event_handlers[MAX_HANDLERS];
+EVENT_INFO event_info;
+
+extern void cwydump(unsigned char *memory, unsigned int len);
+extern uint8_t my_mac[6];
+extern MACADDR gw_mac;
+extern W4343WCard wifiCard;
+extern int display_mode;
+extern IOCTL_MSG ioctl_txmsg, ioctl_rxmsg;
+
+// Event field displays
+char ioctl_event_hdr_fields[] = "2:len 2: 1:seq 1:chan 1: 1:hdrlen 1:flow 1:credit";
+char eth_hdr_fields[]         = "6:dest 6:srce 2;type";
+char event_hdr_fields[]       = "2;sub 2;len 1: 3;oui 2;usr";
+char event_msg_fields[]       = "2;ver 2;flags 4;type 4;status 4;reason 4:auth 4;dlen 6;addr 18:";
+
+// ARP display string.
+char arp_hdr_fields[]   = "2;hrd 2;pro 1;hln 1;pln 2;op 6:smac 4;sip 6:dmac 4;dip";
+
+sdpcm_header_t iehh; // Used here and scan.cpp as well.
+
 // Initialise the IP stack, using static address if provided
-//int ip_init(BYTE *ip)
 int Event::ipInit(IPADDR addr) {
   ip_cpy(my_ip,addr);
   return(1);
 }
 
-extern void rx_frame(void *buff, uint16_t len);
+// Get MAC Address for default gateway (needed for non local ping).
+int Event::get_gw_mac(struct netif *netif) { 
+  uint32_t mscnt = 0;
+  ip4_addr_t *ipaddr_ret;
+  err_t err = ERR_OK;
+  struct eth_addr *ethaddr_ret;
+
+  while (mscnt < 3000) {
+    err = etharp_query(netif, &(netif->gw), NULL);
+    if(err != ERR_OK) {
+      printf("Error could not perform ARP query!\n");
+    } else {
+      err = etharp_find_addr(netif, &(netif->gw), &ethaddr_ret, (const ip4_addr_t**)&ipaddr_ret);
+      if(err > -1) {
+        MAC_CPY(gw_mac, (uint8_t *)ethaddr_ret);
+        break;
+      }
+    }
+    delay(GW_MS_DELAY);
+    mscnt += GW_MS_DELAY;
+  }
+  return err;
+}
+
+//extern void rx_frame(void *buff, uint16_t len);
 // Add an event handler to the chain
+
 bool Event::add_event_handler(event_handler_t fn)
 {
     return(add_server_event_handler(fn , 0));
 }
 
 // Add a server event handler to the chain (with local port number)
-bool Event::add_server_event_handler(event_handler_t fn, WORD port)
+bool Event::add_server_event_handler(event_handler_t fn, uint16_t port)
 {
     bool ok = num_handlers < MAX_HANDLERS;
     if (ok)
@@ -115,7 +110,7 @@ bool Event::add_server_event_handler(event_handler_t fn, WORD port)
 }
 
 // Find saved ARP response
-bool ip_find_arp(IPADDR addr, MACADDR mac) {
+bool Event::ip_find_arp(IPADDR addr, MACADDR mac) {
 //printf("ip_find_arp()\n");
     int n=0, i=arp_idx;
     bool ok=0;
@@ -131,7 +126,7 @@ bool ip_find_arp(IPADDR addr, MACADDR mac) {
 }
 
 // Transmit an ARP frame
-int ip_tx_arp(MACADDR mac, IPADDR addr, WORD op) {
+int Event::ip_tx_arp(MACADDR mac, IPADDR addr, uint16_t op) {
 //printf("ip_tx_arp()\n");
     int n = ip_make_arp(txbuff, mac, addr, op);
 //printf("(ARP)n = %d\n",n);
@@ -139,11 +134,11 @@ int ip_tx_arp(MACADDR mac, IPADDR addr, WORD op) {
 }
 
 // Receive incoming ARP data
-int ip_rx_arp(BYTE *data, int dlen) {
+int Event::ip_rx_arp(uint8_t *data, int dlen) {
 //printf("ip_rx_arp()\n");
     ETHERHDR *ehp=(ETHERHDR *)data;
     ARPKT *arp = (ARPKT *)&data[sizeof(ETHERHDR)];
-    WORD op = htons(arp->op);
+    uint16_t op = htons(arp->op);
 
     if (display_mode & DISP_ETH)
         ip_print_eth(data);
@@ -161,39 +156,26 @@ int ip_rx_arp(BYTE *data, int dlen) {
 }
 
 // Create an ARP frame // Returning 12 bytes to many!!!!
-int ip_make_arp(BYTE *buff, MACADDR mac, IPADDR addr, WORD op) {
+int Event::ip_make_arp(uint8_t *buff, MACADDR mac, IPADDR addr, uint16_t op) {
 //printf("ip_make_arp()\n");
     int n = ip_add_eth(buff, op==ARPREQ ? bcast_mac : mac, my_mac, PCOL_ARP);
-//Serial.printf("(ip_make_arp)n = %d\n",n);
-/*
-print_mac_addr(bcast_mac);
-printf("\n");
-print_mac_addr(mac);
-printf("\n");
-print_mac_addr(my_mac);
-printf("\n");
-*/
     ARPKT *arp = (ARPKT *)&buff[n];
+
     MAC_CPY(arp->smac, my_mac);
     MAC_CPY(arp->dmac, op==ARPREQ ? bcast_mac : mac);
     arp->hrd = htons(HTYPE);
     arp->pro = htons(ARPPRO);
     arp->hln = MACLEN;
-    arp->pln = sizeof(DWORD);
+    arp->pln = sizeof(uint32_t);
     arp->op  = htons(op);
     ip_cpy(arp->dip, addr);
     ip_cpy(arp->sip, my_ip);
-    if (display_mode & DISP_ARP)
-        ip_print_arp(arp);
-//print_mac_addr(arp->smac);
-//printf("\n");
-//print_mac_addr(arp->dmac);
-//printf("sizeof(ARPKT) = %d\n",sizeof(ARPKT));
+    if (display_mode & DISP_ARP) ip_print_arp(arp);
     return(n + sizeof(ARPKT));
 }
 
 // Save ARP result
-void ip_save_arp(MACADDR mac, IPADDR addr) {
+void Event::ip_save_arp(MACADDR mac, IPADDR addr) {
 //printf("save_arp()\n");
     MAC_CPY(arp_entries[arp_idx].mac, mac);
     ip_cpy(arp_entries[arp_idx].ipaddr, addr);
@@ -201,7 +183,7 @@ void ip_save_arp(MACADDR mac, IPADDR addr) {
 }
 
 // Check if IP frame
-int ip_check_frame(BYTE *data, int dlen) {
+int Event::ip_check_frame(uint8_t *data, int dlen) {
     uint8_t *p = data;
     ETHERHDR *ehp=(ETHERHDR *)p;
     IPHDR *ip = (IPHDR *)&p[sizeof(ETHERHDR)];
@@ -214,40 +196,40 @@ int ip_check_frame(BYTE *data, int dlen) {
 }
 
 // Handler for incoming ARP frame
-int arp_event_handler(EVENT_INFO *eip) {
+int Event::arp_event_handler(EVENT_INFO *eip) {
 //printf("arp_event_handler()\n");
     uint8_t *p = eip->data;
     ETHERHDR *ehp=(ETHERHDR *)p;
     if (eip->chan == SDPCM_CHAN_DATA &&
         (uint8_t)eip->dlen >= sizeof(ETHERHDR)+sizeof(ARPKT) &&
-                               htons(ehp->ptype) == PCOL_ARP &&
+                         local.htons(ehp->ptype) == PCOL_ARP &&
                                     (MAC_IS_BCAST(ehp->dest) ||
                                   MAC_CMP(ehp->dest, my_mac) ))
     {
-        return(ip_rx_arp(p, eip->dlen));
+        return(local.ip_rx_arp(p, eip->dlen));
     }
     return(0);
 }
 
 // Handler for incoming ICMP frame
-int icmp_event_handler(EVENT_INFO *eip) {
+int Event::icmp_event_handler(EVENT_INFO *eip) {
 //Serial.printf("icmp_event_handler()\n");
     uint8_t *p = eip->data;
     IPHDR *ip = (IPHDR *)&p[sizeof(ETHERHDR)]; // Strip off ETHERHDR.
     if (eip->chan == SDPCM_CHAN_DATA &&
         ip->pcol == PICMP &&
-        ip_check_frame(p, eip->dlen) &&
+        local.ip_check_frame(p, eip->dlen) &&
         IP_CMP(ip->dip, my_ip) &&
         (uint8_t)eip->dlen > sizeof(ETHERHDR)+sizeof(IPHDR)+sizeof(ICMPHDR))
     {
-        return(ip_rx_icmp(p, eip->dlen));
+        return local.ip_rx_icmp(p, eip->dlen);
     }
     return(0);
 }
 
 /* Calculate TCP-style checksum, add to old value */
-WORD add_csum(WORD sum, void *dp, int count) {
-    WORD n=count>>1, *p=(WORD *)dp, last=sum;
+uint16_t Event::add_csum(uint16_t sum, void *dp, int count) {
+    uint16_t n=count>>1, *p=(uint16_t *)dp, last=sum;
 
     while (n--)
     {
@@ -264,30 +246,31 @@ WORD add_csum(WORD sum, void *dp, int count) {
 }
 
 // Add data to buffer, return length
-int ip_add_data(BYTE *buff, void *data, int len) {
+int Event::ip_add_data(uint8_t *buff, void *data, int len) {
     if (len>0 && data)
         memcpy(buff, data, len);
     return(len);
 }
 
 // Add ICMP header to buffer, return byte count
-int ip_add_icmp(BYTE *buff, BYTE type, BYTE code, void *data, WORD dlen) {
+int Event::ip_add_icmp(uint8_t *buff, uint8_t type, uint8_t code, void *data, uint16_t dlen) {
     ICMPHDR *icmp=(ICMPHDR *)buff;
-    WORD len=sizeof(ICMPHDR);
-    static WORD seq=1;
+    uint16_t len=sizeof(ICMPHDR);
+    static uint16_t seq=1;
 
     icmp->type = type;
     icmp->code = code;
     icmp->seq = htons(seq++);
-    icmp->ident = icmp->check = 0;
-    len += ip_add_data(&buff[len], data, dlen);
-    icmp->check = 0xffff ^ add_csum(0, icmp, len);
+    icmp->ident = 0x514E;
+    icmp->check = 0;
+    len += local.ip_add_data(&buff[len], data, dlen);
+    icmp->check = 0xffff ^ local.add_csum(0, icmp, len);
     return(len);
 }
 
 // Add IP header to buffer, return length
-int ip_add_hdr(BYTE *buff, IPADDR dip, BYTE pcol, WORD dlen) {
-    static WORD ident=1;
+int Event::ip_add_hdr(uint8_t *buff, IPADDR dip, uint8_t pcol, uint16_t dlen) {
+    static uint16_t ident=1;
     IPHDR *ip=(IPHDR *)buff;
 
     ip->ident = htons(ident++);
@@ -300,12 +283,12 @@ int ip_add_hdr(BYTE *buff, IPADDR dip, BYTE pcol, WORD dlen) {
     ip_cpy(ip->dip, dip);
     ip->len = htons(dlen + sizeof(IPHDR));
     ip->check = 0;
-    ip->check = 0xffff ^ add_csum(0, ip, sizeof(IPHDR));
+    ip->check = 0xffff ^ local.add_csum(0, ip, sizeof(IPHDR));
     return(sizeof(IPHDR));
 }
 
 // Send transmit data
-int Event::ip_tx_eth(BYTE *buff, int len) {
+int Event::ip_tx_eth(uint8_t *buff, int len) {
 //printf("ip_tx_eth()\n");
 //printf("len = %d\n",len);
   if(display_mode & DISP_ETH) ip_print_eth(buff);
@@ -313,7 +296,7 @@ int Event::ip_tx_eth(BYTE *buff, int len) {
 }
 
 // Add Ethernet header to buffer, return byte count
-int ip_add_eth(BYTE *buff, MACADDR dmac, MACADDR smac, WORD pcol) {
+int Event::ip_add_eth(uint8_t *buff, MACADDR dmac, MACADDR smac, uint16_t pcol) {
     ETHERHDR *ehp = (ETHERHDR *)buff;
 
     MAC_CPY(ehp->dest, dmac);
@@ -323,16 +306,16 @@ int ip_add_eth(BYTE *buff, MACADDR dmac, MACADDR smac, WORD pcol) {
 }
 
 // Create ICMP request
-int ip_make_icmp(BYTE *buff, MACADDR mac, IPADDR dip, BYTE type, BYTE code, BYTE *data, int dlen) {
+int Event::ip_make_icmp(uint8_t *buff, MACADDR mac, IPADDR dip, uint8_t type, uint8_t code, uint8_t *data, int dlen) {
 //Serial.printf("ip_make_icmp()\n");
 //print_mac_addr(my_mac);
 //printf("\n");
 //print_ip_addr(my_ip);
 //Serial.printf("\n");
-    int n = ip_add_eth(buff, mac, my_mac, PCOL_IP);
+    int n = local.ip_add_eth(buff, mac, my_mac, PCOL_IP);
     
-    n += ip_add_hdr(&buff[n], dip, PICMP, sizeof(ICMPHDR)+dlen);
-    n += ip_add_icmp(&buff[n], type, code, data, dlen);
+    n += local.ip_add_hdr(&buff[n], dip, PICMP, sizeof(ICMPHDR)+dlen);
+    n += local.ip_add_icmp(&buff[n], type, code, data, dlen);
 
 //printf("***************** cwydump(buff,n) ************************\n");
 //cwydump((uint8_t *)buff,n); 
@@ -342,16 +325,15 @@ int ip_make_icmp(BYTE *buff, MACADDR mac, IPADDR dip, BYTE type, BYTE code, BYTE
 }
 
 // Transmit ICMP request
-int Event::ip_tx_icmp(MACADDR mac, IPADDR dip, BYTE type, BYTE code, BYTE *data, int dlen) {
+int Event::ip_tx_icmp(MACADDR mac, IPADDR dip, uint8_t type, uint8_t code, uint8_t *data, int dlen) {
 //Serial.printf("ip_tx_icmp()\n");
     int n=ip_make_icmp(txbuff, mac, dip, type, code, data, dlen);
-    
     if (display_mode & DISP_ICMP)
         ip_print_icmp((IPHDR *)&txbuff[sizeof(ETHERHDR)]);
 //printf("***************** cwydump(txbuff,n) ************************\n");
 //cwydump((uint8_t *)txbuff,n); 
 //printf("**************************************************************************\n");
-    ping_tx_time = micros();
+//    ping_tx_time = micros();
     return(ip_tx_eth(txbuff, n));
 }
 
@@ -368,31 +350,40 @@ int Event::event_handle(EVENT_INFO *eip) {
 }
 
 // Receive incoming ICMP data
-int ip_rx_icmp(BYTE *data, int dlen) {
-//Serial.printf("ip_rx_icmp()\n");
-//cwydump((uint8_t *)data,dlen);
+int Event::ip_rx_icmp(uint8_t *data, int dlen) {
+Serial.printf("ip_rx_icmp()\n");
+//cwydump((uint8_t *)data,256);
     uint8_t *p = data;
+//const uint8_t *rdata = (const uint8_t *)&p[sizeof(ETHERHDR)+sizeof(IPHDR)+sizeof(ICMPHDR)];
+//cwydump((uint8_t *)rdata,256);
     ETHERHDR *ehp=(ETHERHDR *)p;
     IPHDR *ip = (IPHDR *)&p[sizeof(ETHERHDR)];
     ICMPHDR *icmp = (ICMPHDR *)&p[sizeof(ETHERHDR)+sizeof(IPHDR)];
     int n;
     if (display_mode & DISP_ICMP)
         ip_print_icmp(ip);
-    if (icmp->type == ICREQ)
+    if (icmp->type == ICREQ) // We are being pinged. Respond to request.
     {
         ip_add_eth(data, ehp->srce, my_mac, PCOL_IP);
         ip_cpy(ip->dip, ip->sip);
         ip_cpy(ip->sip, my_ip);
         icmp->check = add_csum(icmp->check, &icmp->type, 1);
+//        icmp->ident = 0x514E;
         icmp->type = ICREP;
         n = htons(ip->len);
         // Was a ping request. Return response.
         return(local.ip_tx_eth(data, sizeof(ETHERHDR)+n+sizeof(ICMPHDR)));
     }
-    else
+    else // We have a response to our ping.
       if (icmp->type == ICREP) { // Need to return stats!!!
         ping_rx_time = micros();
-//Serial.printf("ping_rx_time = %d\n",ping_rx_time);
+Serial.printf("icmp->type = %2.2x\n",icmp->type);
+Serial.printf("icmp->code = %2.2x\n",icmp->code);
+Serial.printf("icmp->check = %4.4x\n",icmp->check);
+Serial.printf("icmp->ident = %4.4x\n",icmp->ident);
+Serial.printf("icmp->seq = %d\n",htons(icmp->seq));
+Serial.printf("ip->ttl = %d\n",ip->ttl);
+
       }
     return(0);
 }
@@ -502,7 +493,7 @@ char *Event::event_str(int event)
 
 // Transmit network data
 int Event::event_net_tx(void *data, int len) {
-//Serial.printf("event_net_tx()\n");
+Serial.printf("event_net_tx()\n");
 //Serial.printf("len = %d\n",len);
 //printf("***************** cwydump(data,len) ************************\n");
 //cwydump((uint8_t *)data,len); 
@@ -552,12 +543,12 @@ const char *Event::ioctl_evt_str(int event)
 //----------------------------------------------------------------------
 
 // Convert byte-order in a 'short' variable
-WORD Event::htons(WORD w) {
+uint16_t Event::htons(uint16_t w) {
     return(w<<8 | w>>8);
 }
 
 // Copy IP address (byte-by-byte, in case misaligned)
-void ip_cpy(BYTE *dest, BYTE *src) {
+void Event::ip_cpy(uint8_t *dest, uint8_t *src) {
     *dest++ = *src++;
     *dest++ = *src++;
     *dest++ = *src++;
@@ -565,7 +556,7 @@ void ip_cpy(BYTE *dest, BYTE *src) {
 }
 
 // Display MAC addresses in Ethernet frame
-void ip_print_eth(BYTE *buff) {
+void Event::ip_print_eth(uint8_t *buff) {
     ETHERHDR *ehp = (ETHERHDR *)buff;
 
     print_mac_addr(ehp->srce);
@@ -577,26 +568,26 @@ void ip_print_eth(BYTE *buff) {
 }
 
 // Display IP address
-void print_ip_addr(IPADDR a) {
+void Event::print_ip_addr(IPADDR a) {
     printf("%u.%u.%u.%u", a[0],a[1],a[2],a[3]);
 }
 
 // Display IP addresses in IP header
-void print_ip_addrs(IPHDR *ip) {
+void Event::print_ip_addrs(IPHDR *ip) {
     print_ip_addr(ip->sip);
     Serial.printf("->");
     print_ip_addr(ip->dip);
 }
 
 // Display MAC address
-void print_mac_addr(MACADDR mac) {
+void Event::print_mac_addr(MACADDR mac) {
     printf("%02X:%02X:%02X:%02X:%02X:%02X",
            mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
 }
 
 // Display ARP
-void ip_print_arp(ARPKT *arp) {
-    WORD op=htons(arp->op);
+void Event::ip_print_arp(ARPKT *arp) {
+    uint16_t op=htons(arp->op);
 
     print_ip_addr(arp->sip);
     printf("->");
@@ -605,8 +596,8 @@ void ip_print_arp(ARPKT *arp) {
 }
 
 // Display ICMP
-void ip_print_icmp(IPHDR *ip) {
-    ICMPHDR *icmp = (ICMPHDR *)((BYTE *)ip + sizeof(IPHDR));
+void Event::ip_print_icmp(IPHDR *ip) {
+    ICMPHDR *icmp = (ICMPHDR *)((uint8_t *)ip + sizeof(IPHDR));
     
     print_ip_addrs(ip);
     printf(" ICMP %s\n", icmp->type==ICREQ     ? "request" : 

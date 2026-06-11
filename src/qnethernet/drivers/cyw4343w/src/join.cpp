@@ -3,7 +3,6 @@
 #include "cyw43_T4_SDIO.h"
 #include "misc_defs.h"
 #include "ioctl_T4.h"
-//#include "event.h"
 #include "join.h"
 
 extern W4343WCard wifiCard;
@@ -13,10 +12,8 @@ Event joinevt;
 EVT_STR no_evts[] = NO_EVTS;
 EVT_STR join_evts[] = JOIN_EVTS;
 
-wl_country_t country_struct = {.country_abbrev=COUNTRY, .rev=COUNTRY_REV, .ccode=COUNTRY};
-const uint8_t mcast_addr[10*6] = {0x01,0x00,0x00,0x00,0x01,0x00,0x5E,0x00,0x00,0xFB};
 
-bool join_start(const char *ssID, const char *passphrase, int security) {
+bool Join::join_start(const char *ssID, const char *passphrase, int security) {
 //  int n, startime=micros();
   Serial.printf(SER_YELLOW "In joinNetworks\n", SER_RESET);
 
@@ -67,6 +64,7 @@ bool join_start(const char *ssID, const char *passphrase, int security) {
     CHECK(wifiCard.ioctl_wr_int32, WLC_SET_WSEC, 0, 0);
     CHECK(wifiCard.ioctl_wr_int32, WLC_SET_WPA_AUTH, 0, 0);
   }
+
   if (joinevt.ioctl_enable_evts(join_evts) == true) {
     Serial.printf(SER_TRACE "Join events enabled\n" SER_RESET);
   } else {
@@ -77,7 +75,7 @@ bool join_start(const char *ssID, const char *passphrase, int security) {
 
 #if defined(USE_MCAST) 
   // Enable multicast
-  wifiCard.ioctl_set_data2((char *)"mcast_list", IOCTL_WAIT, (void *)mcast_addr, sizeof(mcast_addr), false);
+  wifiCard.ioctl_set_data2((const char *)"mcast_list", IOCTL_WAIT, (void *)mcast_addr, sizeof(mcast_addr), false);
   delayMicroseconds(50000);
 #endif
   // Register SSID and password with polling function
@@ -87,14 +85,14 @@ bool join_start(const char *ssID, const char *passphrase, int security) {
 
 // Stop trying to join network
 // (Set WiFi interface 'down', ignore IOCTL response)
-bool join_stop(void)
+bool Join::join_stop(void)
 {
     wifiCard.ioctl_wr_data(WLC_DOWN, 50, 0, 0); 
     return(true);
 }
 
 // Retry joining a network
-bool join_restart(const char *ssid, const char *passwd, int security)
+bool Join::join_restart(const char *ssid, const char *passwd, int security)
 {
     uint32_t n;
     uint8_t data[100];
@@ -144,7 +142,7 @@ bool join_restart(const char *ssid, const char *passwd, int security)
 }
 
 // Handler for join events (link & auth changes)
-int join_event_handler(EVENT_INFO *eip)
+int Join::join_event_handler(EVENT_INFO *eip)
 {
     int ret = 1;
     uint16_t news;
@@ -167,7 +165,7 @@ int join_event_handler(EVENT_INFO *eip)
 }
 
 // Poll the network joining state machine
-void join_state_poll(const char *ssid, const char *passwd, int security)
+void Join::join_state_poll(const char *ssid, const char *passwd, int security)
 {
     EVENT_INFO *eip = &event_info;
     static uint32_t join_ticks;
@@ -220,7 +218,7 @@ void join_state_poll(const char *ssid, const char *passwd, int security)
 }
 
 // Return 1 if link to network, -1 if error linking
-int link_check(void)
+int Join::link_check(void)
 {
     EVENT_INFO *eip=&event_info;
     return((eip->link&LINK_OK) == LINK_OK ? 1 : 
@@ -228,7 +226,7 @@ int link_check(void)
 }
 
 // Return 2 if joined network, -1 if error joining
-int join_check(void)
+int Join::join_check(void)
 {
     EVENT_INFO *eip=&event_info;
     return((eip->join&JOIN_OK) == JOIN_OK ? 2 : eip->join == JOIN_FAIL ? -1 : 0);

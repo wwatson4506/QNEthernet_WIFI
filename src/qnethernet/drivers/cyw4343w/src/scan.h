@@ -3,9 +3,10 @@
 #ifndef SCAN_H
 #define SCANTYPE_ACTIVE_H
 
-
-int ScanNetworks();
-
+class Scan {
+public:
+  int ScanNetworks();
+};
 // EOF
 #endif
 
