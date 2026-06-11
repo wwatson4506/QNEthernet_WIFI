@@ -31,6 +31,8 @@
 
 using namespace qindesign::network;
 
+Scan scan;
+
 MACADDR mac;
 
 void setup()
@@ -77,7 +79,7 @@ void setup()
 }
 
 void loop() {
-  int entries = ScanNetworks();
+  int entries = scan.ScanNetworks();
   if(entries < 0) {
 	Serial.printf("Scan error occured...");
   } else {
