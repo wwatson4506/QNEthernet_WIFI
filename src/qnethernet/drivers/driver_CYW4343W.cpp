@@ -17,7 +17,7 @@
 
 #include "cyw4343w/src/cyw43_T4_SDIO.h"
 #include "cyw4343w/src/join.h"
-#include "cyw4343w/src/secrets.h"
+#include "../src/secrets.h"
 
 Join qnjoin;
 
