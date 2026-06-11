@@ -2,7 +2,7 @@
 
 #include "ping.h"
 #include "cyw43_T4_SDIO.h"
-#include "../src/qnethernet/drivers/cyw4343w/src/secrets.h"
+#include "../src/secrets.h"
 #include "join.h"
 
 using namespace qindesign::network;
