@@ -48,9 +48,9 @@ constexpr unsigned long kPingInterval = 1000;  // 1 second
 //******************************************
 // Un-comment one and only one host to ping.
 //******************************************
-constexpr char pHostname[]{"pjrc.com"};
+//constexpr char pHostname[]{"pjrc.com"};
 //constexpr char pHostname[]{"pool.ntp.org"};
-//constexpr char pHostname[]{"arduino.cc"};
+constexpr char pHostname[]{"arduino.cc"};
 //constexpr char pHostname[]{"www.raspberrypi.org"};
 
 constexpr char lHostname[]{"wwatsonT41"}; // Set to your desired host name.
