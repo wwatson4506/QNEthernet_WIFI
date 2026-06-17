@@ -6,6 +6,8 @@
 - Added a print debug switch to enable or disable printing debug information during initialization. Will be expanded later.
 - Moved "secrets.h" file to "QNEthernet_WiFI/src/secrets.h". @defragster.
 - Removed some unused code.
+- Updated "cyw43_scan.ino". Still needs work for intermittent failures.
+
 ## This library may become obsolete depending on if the original author of QNEthernet creates a reworked version of QNEthernet adding WIFI support. 
 
  ## PINOUT:
