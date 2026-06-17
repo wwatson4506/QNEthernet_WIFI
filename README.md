@@ -1,5 +1,12 @@
 # This is a version of QNEthernet for use with the CYW4343W WIFI card. Most QNEthernet examples except for ping.ino and simplePing.ino are tested and seem to work.
 # THIS IS WORK IN PROGRESS. NO GUARANTEES AT All!! THE ORIGINAL AUTHOR IS NOT RESPONSIBLE FOR ANY OF THIS MODIFIED CODE!!
+## This version is a cleanup of the library:
+- Converted all files to C++.
+- Completely reworked the ping API and sketch.
+- Added a print debug switch to enable or disable printing debug information during initialization. Will be expanded later.
+- Moved "secrets.h" file to "QNEthernet_WiFI/src/secrets.h". @defragster.
+- Removed some unused code.
+## This library may become obsolete depending on if the original author of QNEthernet creates a reworked version of QNEthernet adding WIFI support. 
 
  ## PINOUT:
 TEENSY 4.1   WIFI Board
@@ -11,7 +18,6 @@ TEENSY 4.1   WIFI Board
 - 40 --------> D0
 - 34 --------> INT
 - 33 --------> WL_ON
-
 ## To use the examples with the wifi card you must first edit the "QNEthernet/src/qnethernet/drivers/cyw4343w/src/secrets.h" file:
 ```
 // The secrets file
