@@ -15,8 +15,9 @@ EVT_STR join_evts[] = JOIN_EVTS;
 
 bool Join::join_start(const char *ssID, const char *passphrase, int security) {
 //  int n, startime=micros();
+#if INIT_DEBUG_MODE == true
   Serial.printf(SER_YELLOW "In joinNetworks\n", SER_RESET);
-
+#endif
   // Process SSID
 	wlc_ssid_t ssid;
 	ssid.SSID_len = strlen(ssID);
@@ -32,17 +33,23 @@ bool Join::join_start(const char *ssID, const char *passphrase, int security) {
     Serial.printf(SER_RED "\nWiFi CPU not running\n" SER_RESET);
     return false;
   } else {
+#if INIT_DEBUG_MODE == true
     Serial.printf(SER_GREEN "WiFi CPU running\n" SER_RESET);
+#endif
   }
 
   if (wifiCard.ioctl_set_data("country", 100, &country_struct, sizeof(country_struct)) == true) {
+#if INIT_DEBUG_MODE == true
     Serial.printf(SER_TRACE "Set country succesfully\n" SER_RESET);
+#endif
   } else {
     Serial.printf(SER_ERROR "\nFailed to set country\n" SER_RESET);
   }
 
   if (joinevt.ioctl_enable_evts(no_evts) == true) {
-//    Serial.printf(SER_TRACE "\nNo events enabled\n" SER_RESET);
+#if INIT_DEBUG_MODE == true
+    Serial.printf(SER_TRACE "\nNo events enabled\n" SER_RESET);
+#endif
   } else {
     Serial.printf(SER_RED "\nNo events not enabled\n" SER_RESET);
     return false;
@@ -66,7 +73,9 @@ bool Join::join_start(const char *ssID, const char *passphrase, int security) {
   }
 
   if (joinevt.ioctl_enable_evts(join_evts) == true) {
+#if INIT_DEBUG_MODE == true
     Serial.printf(SER_TRACE "Join events enabled\n" SER_RESET);
+#endif
   } else {
     Serial.printf(SER_RED "Join events not enabled\n" SER_RESET);
     return false;
@@ -177,7 +186,9 @@ void Join::join_state_poll(const char *ssid, const char *passwd, int security)
         p = (char *)passwd;
     if (eip->join == JOIN_IDLE)
     {
+#if INIT_DEBUG_MODE == true
         Serial.printf("Joining network %s\n", s);
+#endif
         eip->link = 0;
         eip->join = JOIN_JOINING;
         ustimeout(&join_ticks, 0);
@@ -188,8 +199,10 @@ void Join::join_state_poll(const char *ssid, const char *passwd, int security)
         if (link_check() > 0)
         {
 
+#if INIT_DEBUG_MODE == true
             Serial.printf(SER_GREEN "\n********************* LINK Established *********************\n" SER_RESET);
             Serial.printf(SER_YELLOW "\n********************* Joined Network ***********************\n\n" SER_RESET);
+#endif
             eip->join = JOIN_OK;
         }
         else if (link_check()<0 || ustimeout(&join_ticks, JOIN_TRY_USEC))

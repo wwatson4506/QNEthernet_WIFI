@@ -729,7 +729,9 @@ bool W4343WCard::SDIODisableFunction(uint8_t functionEnable)
   cardCMD52_write(SD_FUNC_BUS, BUS_IOEN_REG, readResponse);
 
   //TODO validate written?
+#if INIT_DEBUG_MODE == true
   Serial.printf(SER_TRACE "SDIO function mask 0x%02X disabled\n" SER_RESET, functionEnable);
+#endif
   return true;
 }
 
@@ -737,7 +739,9 @@ bool W4343WCard::SDIODisableFunction(uint8_t functionEnable)
 bool W4343WCard::configureOOBInterrupt()
 {
   uint8_t readResponse;
+#if INIT_DEBUG_MODE == true
   Serial.println(SER_TRACE "Configuring WL_IRQ OOB" SER_RESET);
+#endif
   // Must configure BUS_INTEN_REG to enable irq
   cardCMD52_read(SD_FUNC_BUS, BUS_INTEN_REG, &readResponse);
   readResponse |= SDIO_CCCR_IEN_FUNC0 | SDIO_CCCR_IEN_FUNC1 | SDIO_CCCR_IEN_FUNC2;
@@ -814,9 +818,9 @@ bool W4343WCard::uploadFirmware(size_t firmwareSize, uintptr_t source)
   uint32_t nBytesSent = 0;
   uint32_t len = 0;
   uint32_t addr;
-
+#if INIT_DEBUG_MODE == true
   Serial.printf(SER_CYAN "Uploading firmware data\n" SER_RESET);
-
+#endif
   while (nBytesSent < firmwareSize) {
 
     addr = setBackplaneWindow_retOffset(nBytesSent);
@@ -826,7 +830,9 @@ bool W4343WCard::uploadFirmware(size_t firmwareSize, uintptr_t source)
     cardCMD53_write(SD_FUNC_BAK, SB_32BIT_WIN + addr, (uint8_t *)source + nBytesSent, len, false);
     nBytesSent += len;
   }
+#if INIT_DEBUG_MODE == true
   Serial.printf(SER_CYAN "Uploaded firmware, %ld of %ld bytes\n" SER_RESET, nBytesSent, firmwareSize);
+#endif
   return true;
 }
 
@@ -838,8 +844,9 @@ bool W4343WCard::uploadNVRAM(size_t nvRAMSize, uintptr_t source)
   //so calc this. Offset 4 bytes earlier, to leave room for size calculation
   uint32_t offset = (0x10000 - nvRAMSize) - 4;
 
+#if INIT_DEBUG_MODE == true
   Serial.printf(SER_CYAN "Uploading NVRAM data\n" SER_RESET);
-
+#endif
   setBackplaneWindow(0x078000);
   while (nBytesSent < nvRAMSize)
   {
@@ -853,7 +860,9 @@ bool W4343WCard::uploadNVRAM(size_t nvRAMSize, uintptr_t source)
   u32d.uint32 = ((~(nvRAMSize / 4) & 0xffff) << 16) | (nvRAMSize / 4);
   cardCMD53_write(SD_FUNC_BAK, 0x10000 - 4, u32d.bytes, 4, false);
 
+#if INIT_DEBUG_MODE == true
   Serial.printf(SER_CYAN "Uploaded NVRAM, %ld of %ld bytes\n" SER_RESET, nBytesSent, nvRAMSize);
+#endif
   return true;
 }
 
@@ -864,9 +873,10 @@ bool W4343WCard::uploadCLM()
 	uint32_t cumulative_len = 0;
   uint32_t ret = 0;
 
+#if INIT_DEBUG_MODE == true
   Serial.printf(SER_CYAN "Uploading CLM, size: %ld\n" SER_RESET, sizeof(clm_data));
   Serial.flush();
-
+#endif
   chunk_buf = (brcmf_dload_data_le *)malloc(sizeof(*chunk_buf) + MAX_CHUNK_LEN - 1);
   chunk_buf->dload_type = DL_TYPE_CLM;
   chunk_buf->crc = 0;
@@ -889,8 +899,9 @@ bool W4343WCard::uploadCLM()
 		datalen -= chunk_buf->len;
 	} while ((datalen > 0) && (ret == 1));
 
+#if INIT_DEBUG_MODE == true
   Serial.printf(SER_CYAN "CLM uploaded %ld/%ld result: %ld\n" SER_RESET, cumulative_len, FIRMWARE_CLM_LEN, ret);
-
+#endif
   return ret;
 }
 
@@ -906,14 +917,12 @@ int W4343WCard::getMACAddress(uint8_t * mac) {
   return n;
 }
 
-void W4343WCard::getFirmwareVersion()
-{
+void W4343WCard::getFirmwareVersion() {
   uint32_t n = ioctl_get_data("ver", 0, resp, sizeof(resp), false);
   Serial.printf("%sFirmware %s\n" SER_RESET, (n ? SER_GREEN : SER_RED), (n ? (char *)resp : "not responding"));
 }
 
-void W4343WCard::getCLMVersion(bool prntVrfy)
-{
+void W4343WCard::getCLMVersion(bool prntVrfy) {
   uint32_t n = ioctl_get_data("clmver", 0, resp, sizeof(resp), false);
   if(prntVrfy)  
     Serial.printf("%sCLM version %s\n" SER_RESET, (n ? SER_GREEN : SER_RED), (n ? (char *)resp : "not responding"));
@@ -927,7 +936,9 @@ void W4343WCard::postInitSettings()
 
   getCLMVersion(false);
   uploadCLM();
+#if INIT_DEBUG_MODE == true
   getCLMVersion(true); //Repeat to verify
+#endif
 }
 
 void waitInput();
@@ -954,9 +965,10 @@ bool W4343WCard::begin(bool useSDIO2, int8_t wlOnPin, int8_t wlIrqPin, int8_t ex
 
   uint8_t readResponse;
   
+#if INIT_DEBUG_MODE == true
   Serial.printf("===========================\nCYW4343W Card::begin: %s\n===========================\n",
                  fUseSDIO2 ? "SDIO2" : "SDIO");
- 
+#endif 
   initSDHC();
 
   ////////////
@@ -977,7 +989,9 @@ bool W4343WCard::begin(bool useSDIO2, int8_t wlOnPin, int8_t wlIrqPin, int8_t ex
   //out-of-band interrupt on INT pin
   //////////////////////////////////
   if (m_wlIrqPin > -1) {
+#if INIT_DEBUG_MODE == true
     Serial.printf(SER_TRACE "Attaching OOB interrupt to pin %d\n" SER_RESET, m_wlIrqPin);
+#endif
     pinMode(m_wlIrqPin, INPUT);
     attachInterrupt(digitalPinToInterrupt(m_wlIrqPin), onWLIRQInterruptHandler, FALLING);
   }
@@ -1038,7 +1052,9 @@ bool W4343WCard::begin(bool useSDIO2, int8_t wlOnPin, int8_t wlIrqPin, int8_t ex
   if (readResponse & 1) {
     //Set card bus high speed interface
     cardCMD52_write(SD_FUNC_BUS, BUS_SPEED_CTRL_REG, readResponse | 2); // Zero set to 0x03
+#if INIT_DEBUG_MODE == true
     Serial.println(SER_GREEN "Enabled CYW4343W bus high speed interface" SER_RESET);
+#endif
   }
 
   //Set the card bus to 4-bits
@@ -1053,7 +1069,9 @@ bool W4343WCard::begin(bool useSDIO2, int8_t wlOnPin, int8_t wlIrqPin, int8_t ex
   //Verify I/O is ready
   cardCMD52_read(SD_FUNC_BUS, BUS_IORDY_REG, &readResponse);
   if (readResponse & 0x02) {
+#if INIT_DEBUG_MODE == true
     Serial.println(SER_GREEN "BUS_IORDY_REG (Ready indication) returned OK" SER_RESET);
+#endif
   } else {
     Serial.printf(SER_RED "BUS_IORDY_REG (Ready indication) returned %d\n" SER_RESET, readResponse);
     return false;
@@ -1080,8 +1098,9 @@ bool W4343WCard::begin(bool useSDIO2, int8_t wlOnPin, int8_t wlIrqPin, int8_t ex
   //Enable GPIO
   enableSDIO(true);
 
+#if INIT_DEBUG_MODE == true
   Serial.printf(SER_TRACE "SDHC bus set to 4-bit, speed set to %ldMHz\n" SER_RESET, kHzWiFiClk / 1000);
-
+#endif
   ////////////////////////////////////////
   //End Included from SdFat init post CMD7
   ////////////////////////////////////////
@@ -1094,8 +1113,9 @@ bool W4343WCard::begin(bool useSDIO2, int8_t wlOnPin, int8_t wlIrqPin, int8_t ex
   //This was 4 byte read in the Zero code, causes extra bytes in the buffer - only if first CMD53 executed. 
   //Changing size to < 4 "fixes" it. Debug code sdio.c 3909 formats value as %4x, so use size 2
   cardCMD53_read(SD_FUNC_BAK, SB_32BIT_WIN, u32d.bytes, 2);
+#if INIT_DEBUG_MODE == true
   Serial.printf(SER_GREEN "*************\nCardID: %ld\n*************\n" SER_RESET, u32d.uint32 & 0xFFFF);
-
+#endif
 #if USE_CYW4343W == false // Do 'wifiSetup' here else do 'wifiSetup' in QNEthernet.
   //============================
   // Setup the WiFi card (1dx) =
@@ -1156,7 +1176,9 @@ bool W4343WCard::wifiSetup(void) {
     Serial.println(SER_RED "Set SRAM_IOCTRL_REG issue" SER_RESET);
     return false;
   } else {
+#if INIT_DEBUG_MODE == true
     Serial.println(SER_GREEN "Set SRAM_IOCTRL_REG validated" SER_RESET);
+#endif
   }
   
   //[18.034039]
@@ -1169,14 +1191,18 @@ bool W4343WCard::wifiSetup(void) {
     Serial.println(SER_RED "Set SRAM_IOCTRL_REG second issue" SER_RESET);
     return false;
   } else {
+#if INIT_DEBUG_MODE == true
     Serial.println(SER_GREEN "Set SRAM_IOCTRL_REG second validation" SER_RESET);
+#endif
   }
 
   if (!backplaneWindow_read32(SRAM_RESETCTRL_REG, &u32d.uint32) || u32d.uint8 != 0) {
     Serial.println(SER_RED "Set SRAM_RESETCTRL_REG issue" SER_RESET);
     return false;
   } else {
+#if INIT_DEBUG_MODE == true
     Serial.println(SER_GREEN "Set SRAM_RESETCTRL_REG validated" SER_RESET);
+#endif
   }
   
   //[18.035416]
@@ -1195,7 +1221,9 @@ bool W4343WCard::wifiSetup(void) {
   //Set card control so an SDIO card reset does a WLAN backplane reset
   cardCMD52_read(SD_FUNC_BUS, BUS_BRCM_CARDCTRL, &readResponse);
   if (readResponse == 1) {
-//    Serial.printf(SER_GREEN "BUS_BRCM_CARDCTRL returned %d\n" SER_RESET, readResponse);
+#if INIT_DEBUG_MODE == true
+    Serial.printf(SER_GREEN "BUS_BRCM_CARDCTRL returned %d\n" SER_RESET, readResponse);
+#endif
   } else {
     Serial.printf(SER_RED "BUS_BRCM_CARDCTRL returned %d\n" SER_RESET, readResponse);
     return false;
@@ -1221,7 +1249,9 @@ bool W4343WCard::wifiSetup(void) {
   //Validate BAK_CHIP_CLOCK_CSR_REG
   cardCMD52_read(SD_FUNC_BAK, BAK_CHIP_CLOCK_CSR_REG, &readResponse);
   if (readResponse == 0x48) {
-//    Serial.printf(SER_GREEN "BAK_CHIP_CLOCK_CSR_REG returned 0x%02X\n" SER_RESET, readResponse);
+#if INIT_DEBUG_MODE == true
+    Serial.printf(SER_GREEN "BAK_CHIP_CLOCK_CSR_REG returned 0x%02X\n" SER_RESET, readResponse);
+#endif
   } else {
     Serial.printf(SER_RED "BAK_CHIP_CLOCK_CSR_REG returned 0x%02X\n" SER_RESET, readResponse);
     return false;
@@ -1262,7 +1292,9 @@ bool W4343WCard::wifiSetup(void) {
     Serial.printf(SER_RED "Set BAK_CHIP_CLOCK_CSR_REG issue, response: 0x%02X\n" SER_RESET, readResponse);
     return false;
   } else {
+#if INIT_DEBUG_MODE == true
     Serial.println(SER_GREEN "Set BAK_CHIP_CLOCK_CSR_REG validated" SER_RESET);
+#endif
   }
  
   //[19.190728]
@@ -1279,7 +1311,9 @@ bool W4343WCard::wifiSetup(void) {
     Serial.printf(SER_RED "Set BUS_IORDY_REG issue, response: 0x%02X\n" SER_RESET, readResponse);
     return false;
   } else {
+#if INIT_DEBUG_MODE == true
     Serial.println(SER_GREEN "Set BUS_IORDY_REG validated" SER_RESET);
+#endif
   }
 
   //Disable pullups 
@@ -1320,7 +1354,9 @@ bool W4343WCard::wifiSetup(void) {
 
   dataISRReceived = false;
   
+#if INIT_DEBUG_MODE == true
   Serial.printf("==============================\nEnd W4343WCard::begin: %s\n==============================\n", fUseSDIO2 ? "SDIO2" : "SDIO");
+#endif
   return true;	
 }
 
