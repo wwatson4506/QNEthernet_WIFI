@@ -1,6 +1,7 @@
 // Scan.cpp
 
 #include "cyw43_T4_SDIO.h"
+#include "misc_defs.h"
 #include "SdioRegs.h"
 #include "ioctl_T4.h"
 #include "event.h"
@@ -36,14 +37,18 @@ int Scan::ScanNetworks() {
   uint8_t eventbuf[1600];
   escan_result *erp = (escan_result *)eventbuf;
 
+#if INIT_DEBUG_MODE == true
   Serial.printf(SER_TRACE "\nSetting scan channel time\n", SER_RESET);
+#endif
   wifiCard.ioctl_wr_int32(IOCTL_SET_SCAN_CHANNEL_TIME, 0, SCAN_CHAN_TIME);
 
   if (!wifiCard.ioctl_wr_int32(WLC_UP, 200, 0)) {
     Serial.printf(SER_RED "\nWiFi CPU not running\n" SER_RESET);
     return-1;
   } else {
+#if INIT_DEBUG_MODE == true
     Serial.printf(SER_GREEN "\nWiFi CPU running\n" SER_RESET);
+#endif
   }
 
   //Clear interrupt?? TODO
@@ -51,14 +56,18 @@ int Scan::ScanNetworks() {
   wifiCard.cardCMD53_read(SD_FUNC_RAD, SB_32BIT_WIN, (uint8_t *)resp1, 64);
 
   if (scnevt.ioctl_enable_evts(escan_evts) == true) {
+#if INIT_DEBUG_MODE == true
     Serial.printf(SER_TRACE "\nEvents enabled\n" SER_RESET);
+#endif
   } else {
     Serial.printf(SER_RED "\nEvents not enabled\n" SER_RESET);
     return -1;
   }
 
   if (wifiCard.ioctl_set_data("escan", 0, &scan_params, sizeof(scan_params)) == true) {
+#if INIT_DEBUG_MODE == true
     Serial.printf(SER_TRACE "\nSet data escan\n" SER_RESET);
+#endif
   } else {
     Serial.printf(SER_RED "\nFailed to set data escan\n" SER_RESET);
     return-1;
