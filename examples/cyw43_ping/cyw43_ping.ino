@@ -41,7 +41,7 @@ extern void cwydump(unsigned char *memory, unsigned int len); // To be removed l
 #define PING_RESP_USEC      100000
 extern MACADDR gw_mac;
 
-constexpr uint16_t pingCount    = 0; // Set to zero for continuous run.
+constexpr uint16_t pingCount    = 10; // Set to zero for continuous run. Default = 10.
 constexpr uint32_t kDHCPTimeout = 15000;  // 15 seconds
 constexpr unsigned long kPingInterval = 1000;  // 1 second
 
