@@ -29,13 +29,14 @@
 #include "event.h"
 #include "SdioRegs.h"
 #include "misc_defs.h"
-//#include "ping.h"
+#include "ping.h"
+
+extern Ping myping;
 
 using namespace qindesign::network;
 
 static int num_handlers = 0;
 static IPADDR my_ip;
-uint32_t ping_tx_time, ping_rx_time;
 
 Event local;
 static event_handler_t event_handlers[MAX_HANDLERS];
@@ -89,9 +90,7 @@ int Event::get_gw_mac(struct netif *netif) {
   return err;
 }
 
-//extern void rx_frame(void *buff, uint16_t len);
 // Add an event handler to the chain
-
 bool Event::add_event_handler(event_handler_t fn)
 {
     return(add_server_event_handler(fn , 0));
@@ -111,7 +110,6 @@ bool Event::add_server_event_handler(event_handler_t fn, uint16_t port)
 
 // Find saved ARP response
 bool Event::ip_find_arp(IPADDR addr, MACADDR mac) {
-//printf("ip_find_arp()\n");
     int n=0, i=arp_idx;
     bool ok=0;
     
@@ -127,15 +125,12 @@ bool Event::ip_find_arp(IPADDR addr, MACADDR mac) {
 
 // Transmit an ARP frame
 int Event::ip_tx_arp(MACADDR mac, IPADDR addr, uint16_t op) {
-//printf("ip_tx_arp()\n");
     int n = ip_make_arp(txbuff, mac, addr, op);
-//printf("(ARP)n = %d\n",n);
     return(local.ip_tx_eth(txbuff, n));
 }
 
 // Receive incoming ARP data
 int Event::ip_rx_arp(uint8_t *data, int dlen) {
-//printf("ip_rx_arp()\n");
     ETHERHDR *ehp=(ETHERHDR *)data;
     ARPKT *arp = (ARPKT *)&data[sizeof(ETHERHDR)];
     uint16_t op = htons(arp->op);
@@ -157,7 +152,6 @@ int Event::ip_rx_arp(uint8_t *data, int dlen) {
 
 // Create an ARP frame // Returning 12 bytes to many!!!!
 int Event::ip_make_arp(uint8_t *buff, MACADDR mac, IPADDR addr, uint16_t op) {
-//printf("ip_make_arp()\n");
     int n = ip_add_eth(buff, op==ARPREQ ? bcast_mac : mac, my_mac, PCOL_ARP);
     ARPKT *arp = (ARPKT *)&buff[n];
 
@@ -176,7 +170,6 @@ int Event::ip_make_arp(uint8_t *buff, MACADDR mac, IPADDR addr, uint16_t op) {
 
 // Save ARP result
 void Event::ip_save_arp(MACADDR mac, IPADDR addr) {
-//printf("save_arp()\n");
     MAC_CPY(arp_entries[arp_idx].mac, mac);
     ip_cpy(arp_entries[arp_idx].ipaddr, addr);
     arp_idx = (arp_idx+1) % NUM_ARP_ENTRIES;
@@ -197,14 +190,13 @@ int Event::ip_check_frame(uint8_t *data, int dlen) {
 
 // Handler for incoming ARP frame
 int Event::arp_event_handler(EVENT_INFO *eip) {
-//printf("arp_event_handler()\n");
     uint8_t *p = eip->data;
     ETHERHDR *ehp=(ETHERHDR *)p;
-    if (eip->chan == SDPCM_CHAN_DATA &&
-        (uint8_t)eip->dlen >= sizeof(ETHERHDR)+sizeof(ARPKT) &&
-                         local.htons(ehp->ptype) == PCOL_ARP &&
-                                    (MAC_IS_BCAST(ehp->dest) ||
-                                  MAC_CMP(ehp->dest, my_mac) ))
+    if(eip->chan == SDPCM_CHAN_DATA &&
+      (uint8_t)eip->dlen >= sizeof(ETHERHDR)+sizeof(ARPKT) &&
+      local.htons(ehp->ptype) == PCOL_ARP &&
+      (MAC_IS_BCAST(ehp->dest) ||
+      MAC_CMP(ehp->dest, my_mac) ))
     {
         return(local.ip_rx_arp(p, eip->dlen));
     }
@@ -213,7 +205,6 @@ int Event::arp_event_handler(EVENT_INFO *eip) {
 
 // Handler for incoming ICMP frame
 int Event::icmp_event_handler(EVENT_INFO *eip) {
-//Serial.printf("icmp_event_handler()\n");
     uint8_t *p = eip->data;
     IPHDR *ip = (IPHDR *)&p[sizeof(ETHERHDR)]; // Strip off ETHERHDR.
     if (eip->chan == SDPCM_CHAN_DATA &&
@@ -230,40 +221,33 @@ int Event::icmp_event_handler(EVENT_INFO *eip) {
 /* Calculate TCP-style checksum, add to old value */
 uint16_t Event::add_csum(uint16_t sum, void *dp, int count) {
     uint16_t n=count>>1, *p=(uint16_t *)dp, last=sum;
-
-    while (n--)
-    {
-        sum += *p++;
-        if (sum < last)
-            sum++;
-        last = sum;
+    while (n--) {
+      sum += *p++;
+      if(sum < last) sum++;
+      last = sum;
     }
-    if (count & 1)
-        sum += *p & 0x00ff;
-    if (sum < last)
-        sum++;
+    if (count & 1) sum += *p & 0x00ff;
+    if (sum < last) sum++;
     return(sum);
 }
 
 // Add data to buffer, return length
-int Event::ip_add_data(uint8_t *buff, void *data, int len) {
-    if (len>0 && data)
-        memcpy(buff, data, len);
+int Event::ip_add_data(uint8_t *buff, const void *data, int len) {
+    if (len>0 && data) memcpy(buff, data, len);
     return(len);
 }
 
 // Add ICMP header to buffer, return byte count
-int Event::ip_add_icmp(uint8_t *buff, uint8_t type, uint8_t code, void *data, uint16_t dlen) {
-    ICMPHDR *icmp=(ICMPHDR *)buff;
-    uint16_t len=sizeof(ICMPHDR);
-    static uint16_t seq=1;
-
+int Event::ip_add_icmp(uint8_t *buff, uint8_t type, uint8_t code, void *pdata) {
+    ICMPHDR *icmp = (ICMPHDR *)buff;
+    uint16_t len = sizeof(ICMPHDR);
+    PING_DATA* const pd = static_cast<PING_DATA*>(pdata);
     icmp->type = type;
     icmp->code = code;
-    icmp->seq = htons(seq++);
+    icmp->seq = htons(pd->seq);
     icmp->ident = 0x514E;
     icmp->check = 0;
-    len += local.ip_add_data(&buff[len], data, dlen);
+    len += local.ip_add_data(&buff[len], pd->data, pd->dataSize);
     icmp->check = 0xffff ^ local.add_csum(0, icmp, len);
     return(len);
 }
@@ -289,16 +273,13 @@ int Event::ip_add_hdr(uint8_t *buff, IPADDR dip, uint8_t pcol, uint16_t dlen) {
 
 // Send transmit data
 int Event::ip_tx_eth(uint8_t *buff, int len) {
-//printf("ip_tx_eth()\n");
-//printf("len = %d\n",len);
   if(display_mode & DISP_ETH) ip_print_eth(buff);
-    return(event_net_tx(buff, len));
+  return(event_net_tx(buff, len));
 }
 
 // Add Ethernet header to buffer, return byte count
 int Event::ip_add_eth(uint8_t *buff, MACADDR dmac, MACADDR smac, uint16_t pcol) {
     ETHERHDR *ehp = (ETHERHDR *)buff;
-
     MAC_CPY(ehp->dest, dmac);
     MAC_CPY(ehp->srce, smac);
     ehp->ptype = htons(pcol);
@@ -306,98 +287,72 @@ int Event::ip_add_eth(uint8_t *buff, MACADDR dmac, MACADDR smac, uint16_t pcol) 
 }
 
 // Create ICMP request
-int Event::ip_make_icmp(uint8_t *buff, MACADDR mac, IPADDR dip, uint8_t type, uint8_t code, uint8_t *data, int dlen) {
-//Serial.printf("ip_make_icmp()\n");
-//print_mac_addr(my_mac);
-//printf("\n");
-//print_ip_addr(my_ip);
-//Serial.printf("\n");
+int Event::ip_make_icmp(uint8_t *buff, MACADDR mac, IPADDR dip, uint8_t type, uint8_t code, void *pdata) {
+    PING_DATA* const pd = static_cast<PING_DATA*>(pdata);
     int n = local.ip_add_eth(buff, mac, my_mac, PCOL_IP);
-    
-    n += local.ip_add_hdr(&buff[n], dip, PICMP, sizeof(ICMPHDR)+dlen);
-    n += local.ip_add_icmp(&buff[n], type, code, data, dlen);
-
-//printf("***************** cwydump(buff,n) ************************\n");
-//cwydump((uint8_t *)buff,n); 
-//printf("**************************************************************************\n");
-
+    n += local.ip_add_hdr(&buff[n], dip, PICMP, sizeof(ICMPHDR)+pd->dataSize);
+    n += local.ip_add_icmp(&buff[n], type, code, pdata);
     return(n);
 }
 
 // Transmit ICMP request
-int Event::ip_tx_icmp(MACADDR mac, IPADDR dip, uint8_t type, uint8_t code, uint8_t *data, int dlen) {
-//Serial.printf("ip_tx_icmp()\n");
-    int n=ip_make_icmp(txbuff, mac, dip, type, code, data, dlen);
-    if (display_mode & DISP_ICMP)
-        ip_print_icmp((IPHDR *)&txbuff[sizeof(ETHERHDR)]);
-//printf("***************** cwydump(txbuff,n) ************************\n");
-//cwydump((uint8_t *)txbuff,n); 
-//printf("**************************************************************************\n");
-//    ping_tx_time = micros();
+int Event::ip_tx_icmp(MACADDR mac, IPADDR dip, uint8_t type, uint8_t code, void *pdata) {
+    PING_DATA* const pd = static_cast<PING_DATA*>(pdata);
+    int n=ip_make_icmp(txbuff, mac, dip, type, code, pd);
+    if(display_mode & DISP_ICMP)
+      ip_print_icmp((IPHDR *)&txbuff[sizeof(ETHERHDR)]);
     return(ip_tx_eth(txbuff, n));
 }
 
 // Run event handlers, until one returns non-zero
 int Event::event_handle(EVENT_INFO *eip) {
-//Serial.printf("event_handle()\n");
     int i, ret=0;
-    for (i=0; i<num_handlers && !ret; i++)
-    {
-        eip->server_port = event_ports[i];
-        ret = event_handlers[i](eip);
+    for(i=0; i<num_handlers && !ret; i++) {
+       eip->server_port = event_ports[i];
+       ret = event_handlers[i](eip);
     }
     return(ret);
 }
 
 // Receive incoming ICMP data
 int Event::ip_rx_icmp(uint8_t *data, int dlen) {
-Serial.printf("ip_rx_icmp()\n");
-//cwydump((uint8_t *)data,256);
     uint8_t *p = data;
-//const uint8_t *rdata = (const uint8_t *)&p[sizeof(ETHERHDR)+sizeof(IPHDR)+sizeof(ICMPHDR)];
-//cwydump((uint8_t *)rdata,256);
+    const uint8_t *rdata = (const uint8_t *)&p[sizeof(ETHERHDR)+sizeof(IPHDR)+sizeof(ICMPHDR)];
     ETHERHDR *ehp=(ETHERHDR *)p;
     IPHDR *ip = (IPHDR *)&p[sizeof(ETHERHDR)];
     ICMPHDR *icmp = (ICMPHDR *)&p[sizeof(ETHERHDR)+sizeof(IPHDR)];
-    int n;
-    if (display_mode & DISP_ICMP)
-        ip_print_icmp(ip);
-    if (icmp->type == ICREQ) // We are being pinged. Respond to request.
-    {
-        ip_add_eth(data, ehp->srce, my_mac, PCOL_IP);
-        ip_cpy(ip->dip, ip->sip);
-        ip_cpy(ip->sip, my_ip);
-        icmp->check = add_csum(icmp->check, &icmp->type, 1);
-//        icmp->ident = 0x514E;
-        icmp->type = ICREP;
-        n = htons(ip->len);
-        // Was a ping request. Return response.
-        return(local.ip_tx_eth(data, sizeof(ETHERHDR)+n+sizeof(ICMPHDR)));
-    }
-    else // We have a response to our ping.
-      if (icmp->type == ICREP) { // Need to return stats!!!
-        ping_rx_time = micros();
-Serial.printf("icmp->type = %2.2x\n",icmp->type);
-Serial.printf("icmp->code = %2.2x\n",icmp->code);
-Serial.printf("icmp->check = %4.4x\n",icmp->check);
-Serial.printf("icmp->ident = %4.4x\n",icmp->ident);
-Serial.printf("icmp->seq = %d\n",htons(icmp->seq));
-Serial.printf("ip->ttl = %d\n",ip->ttl);
 
-      }
+    int n;
+    if(display_mode & DISP_ICMP) ip_print_icmp(ip);
+    if(icmp->type == ICREQ) { // We are being pinged. Respond to request.
+      ip_add_eth(data, ehp->srce, my_mac, PCOL_IP);
+      ip_cpy(ip->dip, ip->sip);
+      ip_cpy(ip->sip, my_ip);
+      icmp->check = add_csum(icmp->check, &icmp->type, 1);
+      icmp->type = ICREP;
+      n = htons(ip->len);
+      // Was a ping request. Return response.
+      return(local.ip_tx_eth(data, sizeof(ETHERHDR)+n+sizeof(ICMPHDR)));
+    } else if (icmp->type == ICREP) { // Do we have a response to our ping?
+        const PING_DATA reply{.dip   = {ip->sip[0], ip->sip[1], ip->sip[2], ip->sip[3]},
+                              .ttl      = ip->ttl,
+                              .ident    = icmp->ident,
+                              .seq      = icmp->seq,
+                              .data     = rdata,
+                              .dataSize = pingDataSize};
+        myping.replyf_(reply);
+    }
     return(0);
 }
 
 // Enable events
-int Event::ioctl_enable_evts(EVT_STR *evtp)
-{
+int Event::ioctl_enable_evts(EVT_STR *evtp) {
   currentE_evts = evtp;
   memset(event_mask, 0, sizeof(event_mask));
-  while (evtp->num >= 0)
-  {
-      if (evtp->num / 8 < (int32_t)sizeof(event_mask))
-          SET_EVENT(event_mask, evtp->num);
-      evtp++;
+  while (evtp->num >= 0) {
+    if(evtp->num / 8 < (int32_t)sizeof(event_mask))
+      SET_EVENT(event_mask, evtp->num);
+    evtp++;
   }
   return wifiCard.ioctl_set_data("event_msgs", 0, event_mask, sizeof(event_mask));
 }
@@ -416,37 +371,10 @@ int Event::pollEvents() {
     eip->reason = SWAP32(eep->event.msg.reason);
     eip->data = eventbuf+10; //NOTE: Need to move eventbuf ahead by 10 bytes.
                              //      ioctl_get_event() has a 10 byte prefix that
-                             //      is not used by the picowi library. Not
-                             //      sure what the 10 bytes are yet.
+                             //      is not used. Not sure what the 10 bytes are yet.
     eip->dlen = n; // Size of received data in bytes.
     eip->sock = -1;
     ret = event_handle(eip); // Distribute to proper event handler.
-#if USE_ACTIVITY_DISPLAY == true    
-    uint32_t startime=micros();
-    Serial.printf("\n%2.3f ", (micros() - startime) / 1e6);
-    wifiCard.disp_fields(&iehh, ioctl_event_hdr_fields, n);
-    Serial.printf("\n");
-    wifiCard.disp_bytes((uint8_t *)&iehh, sizeof(iehh));
-    Serial.printf("\n");
-    wifiCard.disp_fields(&eep->eth_hdr, eth_hdr_fields, sizeof(eep->eth_hdr));
-
-    if(SWAP16(eep->eth_hdr.ethertype) == 0x886c) {
-       wifiCard.disp_fields(&eep->event.hdr, event_hdr_fields, sizeof(eep->event.hdr));
-       Serial.printf("\n");
-       wifiCard.disp_fields(&eep->event.msg, event_msg_fields, sizeof(eep->event.msg));
-       Serial.printf(SER_WHITE "%s %s" SER_RESET, ioctl_evt_str(SWAP32(eep->event.msg.event_type)),
-                      ioctl_evt_status_str(SWAP32(eep->event.msg.status)));
-     }
-
-     if (SWAP16(eep->eth_hdr.ethertype) == PCOL_ARP) {
-//        wifiCard.disp_fields(arp, arp_hdr_fields, sizeof(arp_hdr_fields));
-        Serial.printf("\n");
-//        ip_print_arp(arp);
-	 }
-     Serial.printf("\n");
-     wifiCard.disp_block(eventbuf, n);
-     Serial.printf("\n");
-#endif
   }
   return ret;
 }
@@ -493,12 +421,6 @@ char *Event::event_str(int event)
 
 // Transmit network data
 int Event::event_net_tx(void *data, int len) {
-Serial.printf("event_net_tx()\n");
-//Serial.printf("len = %d\n",len);
-//printf("***************** cwydump(data,len) ************************\n");
-//cwydump((uint8_t *)data,len); 
-//printf("**************************************************************************\n");
-
     TX_MSG *txp = &tx_msg;
     uint8_t *dp = (uint8_t *)txp;
     int txlen = sizeof(SDPCM_HDR)+2+sizeof(BDC_HDR_T4)+len;
@@ -510,39 +432,29 @@ Serial.printf("event_net_tx()\n");
     txp->sdpcm.notlen = ~txp->sdpcm.len;
     txp->sdpcm.seq = sd_tx_seq++;
     memcpy(txp->data, (uint8_t *)data, len);
-
-//printf("***************** cwydump(txp->data,len) ************************\n");
-//cwydump((uint8_t *)txp->data,len); 
-//printf("**************************************************************************\n");
     while (txlen & 3) dp[txlen++] = 0;
-//printf("***************** cwydump(dp,txlen) ************************\n");
-//cwydump((uint8_t *)dp,txlen); 
-//printf("**************************************************************************\n");
     return (wifiCard.cardCMD53_write(SD_FUNC_RAD, 0, (uint8_t *)dp, txlen, false));
 }
+
 //----------------------------------------------------------------------
 // Return string corresponding to event status Added 02-21-25
 //----------------------------------------------------------------------
-const char *Event::ioctl_evt_status_str(int status)
-{
-    return(status>=0 && status<MAX_EVENT_STATUS ? event_status[status] : "?");
+const char *Event::ioctl_evt_status_str(int status) {
+    return (status>=0 && status<MAX_EVENT_STATUS ? event_status[status] : "?");
 }
 //----------------------------------------------------------------------
 
 //----------------------------------------------------------------------
 // Return string corresponding to event number, without "WLC_E_" prefix Added 02-21-25
 //----------------------------------------------------------------------
-const char *Event::ioctl_evt_str(int event)
-{
+const char *Event::ioctl_evt_str(int event) {
     EVT_STR *evtp=currentE_evts;
-
-    while (evtp && evtp->num>=0 && evtp->num!=event)
-        evtp++;
+    while (evtp && evtp->num>=0 && evtp->num!=event) evtp++;
     return(evtp && evtp->num>=0 && strlen(evtp->str)>6 ? &evtp->str[6] : "?");
 }
 //----------------------------------------------------------------------
 
-// Convert byte-order in a 'short' variable
+// Convert byte-order in a 'short' variable (local version)
 uint16_t Event::htons(uint16_t w) {
     return(w<<8 | w>>8);
 }

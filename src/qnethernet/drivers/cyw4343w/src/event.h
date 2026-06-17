@@ -244,7 +244,7 @@ class Event {
   const char *ioctl_evt_str(int event);
   int ip_rx_arp(uint8_t *data, int dlen);
   int ip_tx_eth(uint8_t *buff, int len);
-  int ip_tx_icmp(MACADDR mac, IPADDR dip, uint8_t type, uint8_t code, uint8_t *data, int dlen);
+  int ip_tx_icmp(MACADDR mac, IPADDR dip, uint8_t type, uint8_t code, void *pdata);
   int ip_rx_icmp(uint8_t *data, int dlen);
   static int icmp_event_handler(EVENT_INFO *eip);
   static int arp_event_handler(EVENT_INFO *eip);
@@ -252,11 +252,11 @@ class Event {
   int ip_tx_arp(MACADDR mac, IPADDR addr, uint16_t op);
   int ip_make_arp(uint8_t *buff, MACADDR mac, IPADDR addr,uint16_t op);
   uint16_t add_csum(uint16_t sum, void *dp, int count);
-  int ip_add_data(uint8_t *buff, void *data, int len);
-  int ip_add_icmp(uint8_t *buff, uint8_t type, uint8_t code, void *data, uint16_t dlen);
+  int ip_add_data(uint8_t *buff, const void *data, int len);
+  int ip_add_icmp(uint8_t *buff, uint8_t type, uint8_t code, void *pdata);
   int ip_add_hdr(uint8_t *buff, IPADDR dip, uint8_t pcol, uint16_t dlen);
   int ip_add_eth(uint8_t *buff, MACADDR dmac, MACADDR smac, uint16_t pcol);
-  int ip_make_icmp(uint8_t *buff, MACADDR mac, IPADDR dip, uint8_t type, uint8_t code, uint8_t *data, int dlen);
+  int ip_make_icmp(uint8_t *buff, MACADDR mac, IPADDR dip, uint8_t type, uint8_t code, void *pdata);
 
   uint32_t ioctl_get_event(sdpcm_header_t *hp, uint8_t *data, int maxlen);
   char *sdpcm_chan_str(int chan);
