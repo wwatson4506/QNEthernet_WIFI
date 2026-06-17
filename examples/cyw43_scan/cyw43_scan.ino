@@ -56,22 +56,16 @@ void setup()
   //EXT_LPO pin (optional, -1 to ignore)
   //////////////////////////////////////////
   if (wifiCard.begin(true, 33, 34, -1) == true) { 
-
     wifiCard.wifiSetup(); // Only needed for wifi scan usage
-  
     wifiCard.postInitSettings();
-    
     Serial.println("initialization done");
-
-  if (wifiCard.getMACAddress(mac) > 0) {
-    Serial.printf("MAC address - ");
-    for (uint8_t i = 0; i < 6; i++) {
-      Serial.printf("%s%02X", i ? ":" : "", mac[i]);
+    if (wifiCard.getMACAddress(mac) > 0) {
+      Serial.printf("MAC address - ");
+      for (uint8_t i = 0; i < 6; i++) {
+        Serial.printf("%s%02X", i ? ":" : "", mac[i]);
+      }
+      Serial.printf("\n");
     }
-    Serial.printf("\n");
-  }
-
-    wifiCard.getFirmwareVersion();
   } else {
     Serial.println("initialization failed!");
   }
