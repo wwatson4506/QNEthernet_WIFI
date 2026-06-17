@@ -105,7 +105,6 @@ typedef enum {
 static enet_init_states_t s_initState = kInitStateStart;
 
 void driver_get_system_mac(uint8_t mac[ETH_HWADDR_LEN]) {
-  printf("driver_get_system_mac\n");
   wifiCard.getMACAddress((uint8_t *)mac);
 }
 
