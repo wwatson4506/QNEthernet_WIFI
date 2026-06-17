@@ -35,8 +35,8 @@ extern Ping myping;
 
 using namespace qindesign::network;
 
-static int num_handlers = 0;
-static IPADDR my_ip;
+static int num_handlers = 0; // Counter for number of event handlers.
+static IPADDR my_ip; // Local IP address variable.
 
 Event local;
 static event_handler_t event_handlers[MAX_HANDLERS];
