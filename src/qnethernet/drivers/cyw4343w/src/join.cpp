@@ -14,10 +14,21 @@ EVT_STR join_evts[] = JOIN_EVTS;
 
 
 bool Join::join_start(const char *ssID, const char *passphrase, int security) {
-//  int n, startime=micros();
 #if INIT_DEBUG_MODE == true
   Serial.printf(SER_YELLOW "In joinNetworks\n", SER_RESET);
 #endif
+  // Make sure we have changed the default SSID to your SSID in "QNEthernet_WIFI/src/secrets.h".
+  if(!strcmp(ssID,(const char *)"yourSSID")) {
+    Serial.printf("Error: The default SSID is being used.\n");
+    Serial.printf("In 'QNEthernet_WIFI/src/secrets.h' change 'yourSSID' to your WIFI router's SSID.\n");
+    return false;
+  }
+  // Make sure we have changed the default password to your password in "QNEthernet_WIFI/src/secrets.h".
+  if(!strcmp(passphrase,(const char *)"yourPWD")) {
+    Serial.printf("Error: The default password is being used.\n");
+    Serial.printf("In 'QNEthernet_WIFI/src/secrets.h' change 'yourPWD' to your WIFI router's password.\n");
+    return false;
+  }
   // Process SSID
 	wlc_ssid_t ssid;
 	ssid.SSID_len = strlen(ssID);
