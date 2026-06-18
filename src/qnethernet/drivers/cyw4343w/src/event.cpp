@@ -334,13 +334,13 @@ int Event::ip_rx_icmp(uint8_t *data, int dlen) {
       // Was a ping request. Return response.
       return(local.ip_tx_eth(data, sizeof(ETHERHDR)+n+sizeof(ICMPHDR)));
     } else if (icmp->type == ICREP) { // Do we have a response to our ping?
-        const PING_DATA reply{.dip   = {ip->sip[0], ip->sip[1], ip->sip[2], ip->sip[3]},
-                              .ttl      = ip->ttl,
-                              .ident    = icmp->ident,
-                              .seq      = icmp->seq,
-                              .data     = rdata,
-                              .dataSize = pingDataSize};
-        myping.replyf_(reply);
+      const PING_DATA reply{.dip   = {ip->sip[0], ip->sip[1], ip->sip[2], ip->sip[3]},
+                            .ttl      = ip->ttl,
+                            .ident    = icmp->ident,
+                            .seq      = icmp->seq,
+                            .data     = rdata,
+                            .dataSize = pingDataSize};
+      myping.replyf_(reply);
     }
     return(0);
 }
