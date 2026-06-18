@@ -20,10 +20,6 @@
 #include "../src/secrets.h"
 
 Join qnjoin;
-
-void cywdump(unsigned char *memory, unsigned int len);
-void waitMyInput(void);
-
 W4343WCard wifiCard;
 Event evt;
 
@@ -109,21 +105,18 @@ void driver_get_system_mac(uint8_t mac[ETH_HWADDR_LEN]) {
 }
 
 bool driver_get_mac(uint8_t mac[ETH_HWADDR_LEN]) {
-//  printf("driver_get_mac\n");
   if(qnjoin.join_check() != JOIN_OK) return false;
   wifiCard.getMACAddress((uint8_t *)mac);
   return true;
 }
 
 bool driver_set_mac(const uint8_t mac[ETH_HWADDR_LEN]) {
-//  printf("driver_set_mac\n");
   if(qnjoin.join_check() != JOIN_OK) return false;
   wifiCard.getMACAddress((uint8_t *)mac);
   return true;
 }
 
 bool driver_has_hardware() {
-//  printf("\ndriver_has_hardware\n");
   switch (s_initState) {
     case kInitStateHasHardware:
       ATTRIBUTE_FALLTHROUGH;
@@ -155,7 +148,6 @@ bool driver_has_hardware() {
 void driver_set_chip_select_pin(int pin) {}
 
 bool driver_init(void) {
-//  printf("driver_init\n");
   if (s_initState == kInitStateInitialized) {
     return true;
   }
@@ -177,12 +169,10 @@ bool driver_init(void) {
     qnjoin.join_state_poll(MY_SSID, MY_PASSPHRASE, SECURITY);
   }
   s_initState = kInitStateInitialized;
-  printf("Initialization Done\n");
   return true;
 }
 
 void driver_deinit() {
-  printf("driver_deinit\n");
   qnjoin.join_stop();
 }
 
@@ -202,8 +192,6 @@ struct pbuf* driver_proc_input(struct netif *netif, int counter) {
     p->len = p->tot_len = data_len+ETH_PAD_SIZE+ETH_PAD_SIZE;
     LWIP_ASSERT("Expected space for pbuf fill",
       pbuf_take(p, (uint8_t *)bf+10, p->tot_len) == ERR_OK);
-//printf("driver_proc_input()\n");
-//cywdump((uint8_t *)p->payload,p->tot_len);
     return p;
   }
   return NULL;
@@ -212,7 +200,6 @@ struct pbuf* driver_proc_input(struct netif *netif, int counter) {
 void driver_poll(struct netif *netif) {
   // Get any events, poll the joining state machine
   if(ustimeout(&poll_ticks, EVENT_POLL_USEC)) {
-//printf("driver_poll()\n");
     evt.pollEvents();
     qnjoin.join_state_poll(MY_SSID, MY_PASSPHRASE, SECURITY);
     ustimeout(&poll_ticks, 0);
@@ -232,9 +219,6 @@ void driver_poll(struct netif *netif) {
 }
 
 err_t driver_output(struct pbuf *p) {
-//printf("driver_output()\n");
-//cywdump((uint8_t *)p->payload,128);  
-
   uint8_t *buffer;
   buffer = (uint8_t *)malloc(p->tot_len*sizeof(uint8_t));
 
@@ -243,31 +227,20 @@ err_t driver_output(struct pbuf *p) {
     return ERR_BUF;
   }
   evt.event_net_tx(buffer, copied + ETH_PAD_SIZE);
-//  evt.event_net_tx(p->payload, copied + ETH_PAD_SIZE);
-
-//cywdump((uint8_t *)p->payload,copied);  
-//cywdump((uint8_t *)buffer,copied);  
-//waitMyInput();
   free(buffer);
   return ERR_OK;
 }
 
 #if QNETHERNET_ENABLE_RAW_FRAME_SUPPORT
 bool driver_output_frame(const void *frame, size_t len) {
-//  printf("driver_output_frame\n");
-
   if (len > (UINT16_MAX - ETH_PAD_SIZE)) {
     return false;
   }
-
   uint8_t *buffer;
   buffer = (uint8_t *)malloc(len*sizeof(uint8_t));
-
   (void)memcpy((uint8_t*)buffer + ETH_PAD_SIZE, frame, len);
   evt.event_net_tx(buffer, len + ETH_PAD_SIZE);
-
   free(buffer);
-
   return true;
 }
 #endif
@@ -277,97 +250,31 @@ void driver_get_link_info(struct LinkInfo* const li) {
 }
 
 size_t driver_get_mtu() {
-//  printf("driver_get_mtu()\n");
   return MTU;
 }
 
 size_t driver_get_max_frame_len() {
-//  printf("driver_get_max_frame_len\n");
   return 1580 - 44;
 }
 
 bool driver_set_incoming_mac_address_allowed(const uint8_t mac[ETH_HWADDR_LEN],
                                              bool allow) {
-//  printf("driver_set_incoming_address_allowed()\n");
+  // CYW4343W MAC address is fixed in chip.
   return false;
 }
 
-
 #if !QNETHERNET_ENABLE_PROMISCUOUS_MODE
 bool driver_set_mac_address_allowed(const uint8_t mac[ETH_HWADDR_LEN], bool allow) {
-//  printf("driver_set_mac_address_allowed\n");
+  // CYW4343W MAC address is fixed in chip.
   return false;
 }
 #endif
 
-// these functions don't seem to be used right now...
 bool driver_is_unknown() {
-//  printf("driver_is_unknown\n");
-  return false;
-}
-	 
-bool driver_is_link_state_detectable() {
-//  printf("driver_is_link_state_detectable\n");
-  return true;
+  return s_initState == kInitStateStart;;
 }
 
-int driver_link_speed() {
-//  printf("driver_link_speed\n");
-	return 0;
-}
-
-bool driver_link_is_full_duplex() {
-//  printf("driver_link_is_full_duplex\n");
-  return true;
-}
-
-bool driver_link_is_crossover() {
-//  printf("driver_link_is_crossover\n");
-  return false;
-}
 
 } // extern "C"
-
-// Simple wait for input routine.
-void waitMyInput()
-{
-  Serial.println("Press anykey to continue...");
-  while (Serial.read() == -1) ;
-  while (Serial.read() != -1) ;
-}
-
-// Simple hex dump routine.
-void cywdump(unsigned char *memory, unsigned int len)
-{
-   	unsigned int	i=0, j=0;
-	unsigned char	c=0;
-
-//	printf("                     (FLASH) MEMORY CONTENTS");
-	Serial.printf("\n\rADDR          00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F");
-	Serial.printf("\n\r-------------------------------------------------------------\n\r");
-
-
-	for(i = 0; i <= (len-1); i+=16) {
-//		phex16((i + memory));
-		Serial.printf("%8.8x",(unsigned int)(i + memory));
-		Serial.printf("      ");
-		for(j = 0; j < 16; j++) {
-			c = memory[i+j];
-			Serial.printf("%2.2x",c);
-			Serial.printf(" ");
-		}
-		Serial.printf("  ");
-		for(j = 0; j < 16; j++) {
-			c = memory[i+j];
-			if(c > 31 && c < 127)
-				Serial.printf("%c",c);
-			else
-				Serial.printf(".");
-		}
-//		_delay_ms(10);
-		Serial.printf("\n");
-	}
-
-}
 
 #endif
