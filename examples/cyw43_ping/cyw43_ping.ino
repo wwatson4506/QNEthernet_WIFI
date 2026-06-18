@@ -38,7 +38,7 @@ Event evnt;
 void waitForInput(); // to be removed later.
 extern void cwydump(unsigned char *memory, unsigned int len); // To be removed later.
 
-#define PING_RESP_USEC      100000
+#define PING_RESP_USEC      200000
 extern MACADDR gw_mac;
 
 constexpr uint16_t pingCount    = 10; // Set to zero for continuous run. Default = 10.
@@ -56,7 +56,6 @@ constexpr char pHostname[]{"arduino.cc"};
 constexpr char lHostname[]{"wwatsonT41"}; // Set to your desired host name.
 
 namespace {  // Internal linkage section
-int reps = pingCount;
 bool running = false;  // Whether the program is still running
 IPAddress pingIP;
 uint8_t ping_data[pingDataSize];
@@ -65,7 +64,7 @@ unsigned long pingTimer = millis() - kPingInterval;  // Start expired
 bool replyReceived = false;  // Indicates if the current reply has
                              // been received
 uint32_t pingCounter = 0;
-uint32_t ping_poll_ticks, ping_ticks;
+uint32_t ping_ticks;
 err_t err = ERR_OK;
 }  // namespace
 
