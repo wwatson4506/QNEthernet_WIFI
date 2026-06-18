@@ -5,7 +5,7 @@
 - Completely reworked the ping API and sketch.
 - Added a print debug switch to enable or disable printing debug information during initialization. Will be expanded later.
 - Moved "secrets.h" file to "QNEthernet_WiFI/src/secrets.h". @defragster.
-- Added guards against trying to use the default SSID and password in "QNEthernet_WiFI/src/secrets.h". Will throw a decriptive error.
+- Added guards against trying to use the default SSID and password in "QNEthernet_WiFI/src/secrets.h". Will throw a descriptive error.
 - Removed some unused code.
 - Updated "cyw43_scan.ino". Still needs work for intermittent failures.
 
