@@ -191,7 +191,7 @@ void echoCallback(const PING_DATA& reply) {
   Serial.printf("%d bytes from server (%u.%u.%u.%u)-""%s"" ",
   reply.dataSize, reply.dip[0], reply.dip[1], reply.dip[2], reply.dip[3],
   pHostname);
-  Serial.printf("icmp_seq=%d ",htons(reply.seq));
+  Serial.printf("seq=%d ",htons(reply.seq));
   Serial.printf("ttl=%d",reply.ttl);
   Serial.printf(" time=%lu ms\r\n",millis() - pingTimer);
   Serial.printf("%s", payloadMatches ? "" : "(payload mismatch) ");
