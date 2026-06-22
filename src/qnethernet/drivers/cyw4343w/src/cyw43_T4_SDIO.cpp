@@ -65,7 +65,6 @@ void cwydump(unsigned char *memory, unsigned int len);
 uint8_t my_mac[6];
 MACADDR gw_mac;
 int display_mode = 0;
-//extern T4_SDIO sdio;
 
 //==============================================================================
 //------------------------------------------------------------------------------
@@ -75,7 +74,6 @@ volatile bool W4343WCard::dataISRReceived = false;
 volatile bool W4343WCard::fUseSDIO2 = false;
 
 #define DBG_TRACE Serial.print("TRACE."); Serial.println(__LINE__); delay(200);
-//#define USE_DEBUG_MODE 1
 #if USE_DEBUG_MODE
 #define DBG_IRQSTAT() if (m_psdhc->INT_STATUS) {Serial.print(__LINE__);\
         Serial.print(" IRQSTAT "); Serial.print(SER_RED); Serial.println(m_psdhc->INT_STATUS, HEX); Serial.print(SER_RESET);}
@@ -507,7 +505,7 @@ bool W4343WCard::cardCMD53(uint32_t functionNumber, uint32_t registerAddress, ui
 /////////////////////////////
 // WLAN interaction functions
 /////////////////////////////
-uint16_t ioctl_reqid=0;
+static uint16_t ioctl_reqid=0;
 #define DISP_BLOCKLEN       32
 
 // Event handling
@@ -1089,7 +1087,7 @@ bool W4343WCard::begin(bool useSDIO2, int8_t wlOnPin, int8_t wlIrqPin, int8_t ex
   m_psdhc->PROT_CTRL |= SDHC_PROCTL_DTW(SDHC_PROCTL_DTW_4BIT);
 
   //Set the SDHC SCK frequency
-  kHzWiFiClk = 33'000; //25'000; //TODO 50'000
+  kHzWiFiClk = 33'000; //33'000; //25'000; //TODO 50'000
 
   //Disable GPIO
   enableSDIO(false);
@@ -1515,7 +1513,9 @@ int W4343WCard::ioctl_cmd_poll_device(int wait_msec, int wr, void *data, int dle
       
       if (hdr[0] == 0 && hdr[1] == 0) {
         // no packets
+#if USE_DEBUG_MODE
         Serial.printf(SER_ERROR "No packets\n" SER_RESET);
+#endif
         had_successful_packet = false;
 
         return 1;
@@ -1529,10 +1529,11 @@ int W4343WCard::ioctl_cmd_poll_device(int wait_msec, int wr, void *data, int dle
 
       memcpy(rsp, hdr, 4);
       ret = cardCMD53_read(SD_FUNC_RAD, SB_32BIT_WIN, (uint8_t *)rsp + 4, hdr[0] - 4, logOutput);
-
       // Discard response if not matching request
       if ((rsp->cmd.flags >> 16) != ioctl_reqid) {
+#if DEBUG_WARNINGS == true
         Serial.printf(SER_WARN "None matching request: cmd.flags: %ld, ioctl_reqid: %ld\n" SER_RESET, (rsp->cmd.flags >> 16), ioctl_reqid);
+#endif
         ret = 0;
       }
       // Exit if error response
@@ -1549,7 +1550,9 @@ int W4343WCard::ioctl_cmd_poll_device(int wait_msec, int wr, void *data, int dle
     }
     // If no response, wait
     else {
+#if USE_DEBUG_MODE
       Serial.printf("No respsone, wait....\n");
+#endif
       delay(IOCTL_POLL_MSEC);
     }
   }
@@ -1570,24 +1573,26 @@ int W4343WCard::ioctl_wait(int usec)
   return ready;
 }
 
-/*
+
 // Display last IOCTL if error ******** FIX ME *************************
 void W4343WCard::ioctl_err_display(int retval)
 {
+/*
     IOCTL_MSG_T4 *msgp = &ioctl_txmsg;
     IOCTL_HDR *iohp = (IOCTL_HDR *)&msgp->data[msgp->cmd.sdpcm.hdrlen];
     char *cmds = iohp->cmd==WLC_GET_VAR ? (char *)"GET" : 
                  iohp->cmd==WLC_SET_VAR ? (char *)"SET" : (char *)"";
     char *data, *name;
-    
+*/    
     if (retval <= 0)
     {
-        data = (char *)&msgp->data[msgp->cmd.sdpcm.hdrlen+sizeof(IOCTL_HDR)];
-        name = iohp->cmd==WLC_GET_VAR || iohp->cmd==WLC_SET_VAR ? data : (char *)"";
-        Serial.printf("IOCTL error: cmd %lu %s %s\n", iohp->cmd, cmds, name);
+//        data = (char *)&msgp->data[msgp->cmd.sdpcm.hdrlen+sizeof(IOCTL_HDR)];
+//        name = iohp->cmd==WLC_GET_VAR || iohp->cmd==WLC_SET_VAR ? data : (char *)"";
+//        Serial.printf("IOCTL error: cmd %lu %s %s\n", iohp->cmd, cmds, name);
+        Serial.printf("IOCTL error: %d\n",retval);
     }
 }
-*/
+
 /*
 */
 ////////////////////////

@@ -7,12 +7,23 @@
 #ifndef MAX
 #define MAX(a,b) (((a)>(b))?(a):(b))
 #endif
-
+//---------------------------------------------------
 // Un-comment to enable multicast.
 //#define USE_MCAST 1
 
 // Init Debug Mode. Displays initialization processes.
 #define INIT_DEBUG_MODE false
+
+// Warnings
+#define DEBUG_WARNINGS false
+
+// More verbose
+//#define USE_DEBUG_MODE 1
+
+// Show hidden sites during scan.
+#define SHOW_HIDDEN false
+//---------------------------------------------------
+
 
 #define RXDATA_LEN      1600
 #define TXDATA_LEN      1600

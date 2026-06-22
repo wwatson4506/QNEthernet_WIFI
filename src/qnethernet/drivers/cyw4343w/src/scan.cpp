@@ -18,77 +18,37 @@ brcmf_escan_params_le scan_params = {
       .ssid_le {
         .SSID_len=0, .SSID={0}
       }, 
-    .bssid={0xff,0xff,0xff,0xff,0xff,0xff}, .bss_type=2,
-    .scan_type=SCANTYPE_PASSIVE, .nprobes=-1, .active_time=-1,
-    .passive_time=-1, .home_time=-1, 
+      .bssid={0xff,0xff,0xff,0xff,0xff,0xff}, .bss_type=2,
+      .scan_type=SCANTYPE_PASSIVE, .nprobes=-1, .active_time=-1,
+      .passive_time=-1, .home_time=-1, 
 #if SCAN_CHAN == 0
-    .nchans=14, .nssids=0, 
+      .nchans=14, .nssids=0, 
 //    .chans={{1,0x2b},{2,0x2b},{3,0x2b},{4,0x2b},{5,0x2b},{6,0x2b},{7,0x2b},
 //      {8,0x2b},{9,0x2b},{10,0x2b},{11,0x2b},{12,0x2b},{13,0x2b},{14,0x2b}},
 #else
-    .nchans=1, .nssids=0, .chans={{SCAN_CHAN,0x2b}}, .ssids={{0}}
+      .nchans=1,
+      .nssids=0,
+      .chans={{SCAN_CHAN,0x2b}},
+      .ssids={{0}}
 #endif
     }
 };
 
-int Scan::ScanNetworks() {
-  uint8_t resp1[256];
-  EVT_STR escan_evts[] = ESCAN_EVTS;
-  uint8_t eventbuf[1600];
-  escan_result *erp = (escan_result *)eventbuf;
-
-#if INIT_DEBUG_MODE == true
-  Serial.printf(SER_TRACE "\nSetting scan channel time\n", SER_RESET);
-#endif
-  wifiCard.ioctl_wr_int32(IOCTL_SET_SCAN_CHANNEL_TIME, 0, SCAN_CHAN_TIME);
-
-  if (!wifiCard.ioctl_wr_int32(WLC_UP, 200, 0)) {
-    Serial.printf(SER_RED "\nWiFi CPU not running\n" SER_RESET);
-    return-1;
-  } else {
-#if INIT_DEBUG_MODE == true
-    Serial.printf(SER_GREEN "\nWiFi CPU running\n" SER_RESET);
-#endif
-  }
-
-  //Clear interrupt?? TODO
-  wifiCard.backplaneWindow_write32(SB_INT_STATUS_REG, 0);
-  wifiCard.cardCMD53_read(SD_FUNC_RAD, SB_32BIT_WIN, (uint8_t *)resp1, 64);
-
-  if (scnevt.ioctl_enable_evts(escan_evts) == true) {
-#if INIT_DEBUG_MODE == true
-    Serial.printf(SER_TRACE "\nEvents enabled\n" SER_RESET);
-#endif
-  } else {
-    Serial.printf(SER_RED "\nEvents not enabled\n" SER_RESET);
-    return -1;
-  }
-
-  if (wifiCard.ioctl_set_data("escan", 0, &scan_params, sizeof(scan_params)) == true) {
-#if INIT_DEBUG_MODE == true
-    Serial.printf(SER_TRACE "\nSet data escan\n" SER_RESET);
-#endif
-  } else {
-    Serial.printf(SER_RED "\nFailed to set data escan\n" SER_RESET);
-    return-1;
-  }
-
-  int count = 0;
-  while (1) {
-    delay(125);
-    uint32_t n = scnevt.ioctl_get_event(&iehh, eventbuf, sizeof(eventbuf));
-    if(n == WLC_E_STATUS_SUCCESS) break; // Break out of while() loop;
+// Start a network scan
+int Scan::scan_start(void)
+{
+    int ret;
     
-    // If scan complete then return
-    count++;
-    if((n > sizeof(escan_result))) { // hidden files shown.
-//    if((n > sizeof(escan_result)) && (erp->escan.bss_info->SSID_len != 0)) { // hidden files not shown. Hangs!!!!
-      wifiCard.printMACAddress((uint8_t *)&erp->event.whd_event.addr);
-      Serial.printf("  |  Signal:  %d dBm", erp->escan.bss_info->RSSI);
-      Serial.printf("  |  Channel #%-2d | ", erp->escan.bss_info->chanspec & 0xFF);
-      wifiCard.printSSID(&erp->escan.bss_info->SSID_len);
-      Serial.printf("\n");
-    }
-  }
-  return count;
+    scnevt.ioctl_enable_evts((EVT_STR *)escan_evts);
+    ret = wifiCard.ioctl_wr_int32(WLC_SET_SCAN_CHANNEL_TIME, 10, SCAN_CHAN_TIME) > 0 &&
+        wifiCard.ioctl_set_uint32("pm2_sleep_ret", IOCTL_WAIT, 0xc8) > 0 &&
+        wifiCard.ioctl_set_uint32("bcn_li_bcn", IOCTL_WAIT, 1) > 0 &&
+        wifiCard.ioctl_set_uint32("bcn_li_dtim", IOCTL_WAIT, 1) > 0 &&
+        wifiCard.ioctl_set_uint32("assoc_listen", IOCTL_WAIT, 0x0a) > 0 &&
+        wifiCard.ioctl_wr_int32(WLC_SET_BAND, IOCTL_WAIT, WIFI_BAND_ANY) > 0 &&
+        wifiCard.ioctl_wr_int32(WLC_UP, IOCTL_WAIT, 0) > 0 &&
+        wifiCard.ioctl_set_data("escan", IOCTL_WAIT, &scan_params, sizeof(scan_params)) > 0;
+    wifiCard.ioctl_err_display(ret);
+    return(ret);
 }
+

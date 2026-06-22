@@ -99,6 +99,7 @@ class W4343WCard { //: public Event , public T4_SDIO {
   int ioctl_cmd(int cmd, const char *name, int wait_msec, int wr, void *data, int dlen, bool logOutput = false);
   int ioctl_cmd_poll_device(int wait_msec, int wr, void *data, int dlen, bool logOutput = false);
   int ioctl_wait(int usec);
+  int set_iovar_mpc(uint8_t val);
 
   void setBackplaneWindow(uint32_t addr);
   uint32_t setBackplaneWindow_retOffset(uint32_t addr);
@@ -108,7 +109,7 @@ class W4343WCard { //: public Event , public T4_SDIO {
   void printResponse(bool return_value);
   void printMACAddress(uint8_t * data);
   void printSSID(uint8_t * data);
-
+void ioctl_err_display(int retval);
   //-----------------------------------------------------------------------------------------------------------------
 
   private:
@@ -160,7 +161,6 @@ class W4343WCard { //: public Event , public T4_SDIO {
   bool uploadNVRAM(size_t nvRAMSize, uintptr_t source);
   bool uploadCLM();
 
-  int set_iovar_mpc(uint8_t val);
   bool isBusyDat();
   bool isBusyFifoRead();
   bool isBusyFifoWrite();

@@ -32,9 +32,18 @@
 #include "QNEthernet.h"
 #include <lwip/etharp.h>
 
+#define MAX_HANDLERS    20
+#define MAX_EVENT_STATUS 16
+#define GW_MS_DELAY 50
+#define NUM_ARP_ENTRIES 10
+
 #define EVT(e)      {e, #e}
 #define NO_EVTS     {EVT(-1)}
-#define ESCAN_EVTS  {EVT(WLC_E_ESCAN_RESULT), EVT(-1)}
+//#define ESCAN_EVTS  {EVT(WLC_E_ESCAN_RESULT), EVT(-1)} // Original
+// Event handling
+const EVT_STR escan_evts[] = {EVT(WLC_E_ESCAN_RESULT), // PICOWI version
+                              EVT(WLC_E_SET_SSID), 
+                              EVT(-1)};
 #define JOIN_EVTS   {EVT(WLC_E_SET_SSID), EVT(WLC_E_LINK), EVT(WLC_E_AUTH), \
         EVT(WLC_E_DEAUTH_IND), EVT(WLC_E_DISASSOC_IND), EVT(WLC_E_PSK_SUP), EVT(-1)}
 
@@ -209,7 +218,8 @@ typedef struct {
     BCMETH_HDR bcmeth;
     EVENT_HDR eventh;
     SCAN_RESULT_HDR scanh;
-    BSS_INFO info;
+//    BSS_INFO info;
+wl_bss_info_t info;
 } ESCAN_RESULT;
 
 typedef struct
@@ -220,12 +230,6 @@ typedef struct
     uint8_t data[TXDATA_LEN];
 } TX_MSG;
 #pragma pack()
-
-
-#define MAX_HANDLERS    20
-#define MAX_EVENT_STATUS 16
-#define GW_MS_DELAY 50
-#define NUM_ARP_ENTRIES 10
 
 typedef int (*event_handler_t)(EVENT_INFO *eip);
   
@@ -246,6 +250,7 @@ class Event {
   int ip_tx_eth(uint8_t *buff, int len);
   int ip_tx_icmp(MACADDR mac, IPADDR dip, uint8_t type, uint8_t code, void *pdata);
   int ip_rx_icmp(uint8_t *data, int dlen);
+  static int scan_event_handler(EVENT_INFO *eip);
   static int icmp_event_handler(EVENT_INFO *eip);
   static int arp_event_handler(EVENT_INFO *eip);
   bool ip_find_arp(IPADDR addr, MACADDR mac);
@@ -263,6 +268,7 @@ class Event {
   char *event_str(int event);
   int event_net_tx(void *data, int len);
   uint16_t htons(uint16_t w);
+
   protected:
   
   private:
@@ -273,10 +279,11 @@ class Event {
   void print_ip_addr(IPADDR a);
 //  void print_ip_addr(IPADDR a);
   void print_ip_addrs(IPHDR *ip);
+  char *mac_addr_str(char *s, uint8_t *mac);
+  void disp_ssid(uint8_t *data);
   void print_mac_addr(MACADDR mac);
   void ip_print_icmp(IPHDR *ip);
   void ip_print_arp(ARPKT *arp);
-
   uint8_t rxdata[RXDATA_LEN];
   uint8_t txbuff[TXDATA_LEN];
   uint8_t sd_tx_seq;

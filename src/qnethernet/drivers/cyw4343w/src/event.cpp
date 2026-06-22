@@ -37,6 +37,7 @@ using namespace qindesign::network;
 
 static int num_handlers = 0; // Counter for number of event handlers.
 static IPADDR my_ip; // Local IP address variable.
+static uint8_t scan_count = 0;
 
 Event local;
 static event_handler_t event_handlers[MAX_HANDLERS];
@@ -186,6 +187,55 @@ int Event::ip_check_frame(uint8_t *data, int dlen) {
         (htons(ehp->ptype) == PCOL_IP) &&
         (IP_IS_BCAST(ip->dip) || IP_CMP(ip->dip, my_ip) || IP_IS_ZERO(my_ip)) &&
         sizeof(ETHERHDR) + htons(ip->len) <= (uint16_t)dlen);
+}
+
+// Handler for scan events
+int Event::scan_event_handler(EVENT_INFO *eip)
+{
+    ESCAN_RESULT *erp=(ESCAN_RESULT *)eip->data;
+    int ret = (eip->chan==SDPCM_CHAN_EVT) &&
+              (eip->event_type==WLC_E_ESCAN_RESULT);
+    char temps[30];
+    if(ret) {
+      if(erp->eventh.status == 0) {
+        printf("Scan Entries: %d\n",scan_count);
+        printf("Scan complete\n");
+        scan_count = 0;
+        return(-1);
+      } else {
+#if SHOW_HIDDEN == false
+        if(erp->info.SSID_len != 0) {
+#endif
+          scan_count++;
+          wifiCard.printMACAddress((uint8_t *)&erp->info.BSSID);
+          printf("%s", temps);
+          printf("  |  Signal Strength:  %d dBm", erp->info.RSSI);
+          printf("  |  Channel #%-2d | ", erp->info.chanspec & 0xFF);
+
+//printf("  |  capability: %4.4x | ", SWAP16(erp->info.capability));
+
+          local.disp_ssid(&erp->info.SSID_len);
+          printf("\n");
+#if SHOW_HIDDEN == false
+	    }
+#endif
+      }
+    }
+    return(ret);
+}
+
+// Display SSID string that is prefixed with length byte
+void Event::disp_ssid(uint8_t *data)
+{
+    int i=*data++;
+
+  if(i == 0 || *data == 0) printf("[hidden]");
+  else if (i <= SSID_MAXLEN) {
+    while (i-- > 0)
+      putchar(*data++);
+  } else {
+    printf("[invalid length %u]", i);
+  }
 }
 
 // Handler for incoming ARP frame
@@ -491,6 +541,14 @@ void Event::print_ip_addrs(IPHDR *ip) {
     print_ip_addr(ip->dip);
 }
 
+// Convert MAC address to string
+char *Event::mac_addr_str(char *s, uint8_t *mac)
+{
+    sprintf(s, "%02X:%02X:%02X:%02X:%02X:%02X",
+           mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
+    return(s);
+}
+
 // Display MAC address
 void Event::print_mac_addr(MACADDR mac) {
     printf("%02X:%02X:%02X:%02X:%02X:%02X",
@@ -513,7 +571,7 @@ void Event::ip_print_icmp(IPHDR *ip) {
     
     print_ip_addrs(ip);
     printf(" ICMP %s\n", icmp->type==ICREQ     ? "request" : 
-                        icmp->type==ICREP     ? "response" : 
-                        icmp->type==ICUNREACH ? "dest unreachable" : 
-                        icmp->type==ICQUENCH  ? "srce quench" : "?");
+                         icmp->type==ICREP     ? "response" : 
+                         icmp->type==ICUNREACH ? "dest unreachable" : 
+                         icmp->type==ICQUENCH  ? "srce quench" : "?");
 }
