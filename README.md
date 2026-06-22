@@ -7,7 +7,7 @@
 - Moved "secrets.h" file to "QNEthernet_WiFI/src/secrets.h". @defragster.
 - Added guards against trying to use the default SSID and password in "QNEthernet_WiFI/src/secrets.h". Will throw a descriptive error.
 - Removed some unused code.
-- Updated "cyw43_scan.ino". Still needs work for intermittent failures.
+- Updated "cyw43_scan.ino". Reworked scan API. Scan now repeats without hanging up the T4.1. Working on adding security type to info display.
 
 ## This library may become obsolete depending on if the original author of QNEthernet creates a reworked version of QNEthernet adding WIFI support. 
 
