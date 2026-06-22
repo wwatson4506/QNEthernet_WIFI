@@ -32,8 +32,10 @@
 using namespace qindesign::network;
 
 Scan scan;
-
+extern Event scnevt;
 MACADDR mac;
+
+uint32_t scnpoll_ticks;
 
 void setup()
 {
@@ -47,6 +49,8 @@ void setup()
     waitForInput();
   }
   Serial.printf("CPU speed: %ld MHz\n", F_CPU_ACTUAL / 1'000'000);
+
+  scnevt.add_event_handler(scnevt.scan_event_handler);
 
   //////////////////////////////////////////
   //Begin parameters: 
@@ -70,19 +74,26 @@ void setup()
     Serial.println("initialization failed!");
   }
   Serial.println("Setup complete");
-}
+  
 
+}
 void loop() {
-  int entries = scan.ScanNetworks();
-  if(entries < 0) {
-	Serial.printf("Scan error occured...");
-  } else {
-	Serial.printf("Number of scan entries: %d, Unfiltered scan (duplicate and hidden entries shown!)\n", entries);
+  if(!scan.scan_start())
+    Serial.printf("Error: can't start scan\n");
+  ustimeout(&scnpoll_ticks, 0);
+  while (1) {
+    // Get any events
+    if(ustimeout(&scnpoll_ticks, 10000)) {
+      if(scnevt.pollEvents() < 0) { // -1, scan finished.
+        break;
+      }
+      ustimeout(&scnpoll_ticks, 0);
+    }
   }
 
-waitForInput();
-//  Serial.printf("Wait for next scan...\n");
-//  delay(10000);
+//  waitForInput();
+  Serial.printf("Wait for next scan...\n");
+  delay(5000);
 }
 
 // After testing finished,
