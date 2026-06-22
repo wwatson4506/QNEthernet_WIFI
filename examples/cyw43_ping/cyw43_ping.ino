@@ -150,7 +150,7 @@ void loop() {
   PING_DATA pingReq { .dip = {pingIP[0], pingIP[1], pingIP[2], pingIP[3]},
 	                  .ttl = pingTTL,
 	                  .ident = pingId,
-	                  .seq = seq++,
+	                  .seq = ++seq,
 	                  .data = ping_data,
 	                  .dataSize = pingDataSize};
   if(cyw43_ping(pingReq) == false) {
