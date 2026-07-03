@@ -36,7 +36,7 @@ extern Event scnevt;
 MACADDR mac;
 
 uint32_t scnpoll_ticks;
-
+uint8_t scan_entries = 0;
 void setup()
 {
   Serial.begin(115200);
@@ -74,10 +74,11 @@ void setup()
     Serial.println("initialization failed!");
   }
   Serial.println("Setup complete");
-  
 
 }
+
 void loop() {
+  Serial.println("\n\n====== STARTING SCAN ======"); 
   if(!scan.scan_start())
     Serial.printf("Error: can't start scan\n");
   ustimeout(&scnpoll_ticks, 0);
@@ -90,6 +91,28 @@ void loop() {
       ustimeout(&scnpoll_ticks, 0);
     }
   }
+
+  scan_entries = scan.getScanCount();
+  simple_scan_result_t *sr = scan.getFilteredScanResults();
+  Serial.printf("Scan Entries = %u\n",scan_entries);
+  PRINT_SCAN_TEMPLATE();
+  for(int i = 0; i < scan_entries; i++) {
+    Serial.printf(" %2u    %-32s     %4d     %2d      %02X:%02X:%02X:%02X:%02X:%02X    %-5s  (%lu)\n",
+         i+1,
+         sr[i].ssid,
+         sr[i].signal_strength,
+         sr[i].channel&0xff,
+         sr[i].bssid[0],
+         sr[i].bssid[1],
+         sr[i].bssid[2],
+         sr[i].bssid[3],
+         sr[i].bssid[4],
+         sr[i].bssid[5],
+         sr[i].security,
+         sr[i].security_mask);
+  }
+
+  Serial.printf("Scan complete\n");
 
 //  waitForInput();
   Serial.printf("Wait for next scan...\n");
