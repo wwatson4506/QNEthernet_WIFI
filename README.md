@@ -8,7 +8,8 @@
 - Added guards against trying to use the default SSID and password in "QNEthernet_WiFI/src/secrets.h". Will throw a descriptive error.
 - Removed some unused code.
 - Updated "cyw43_scan.ino". Reworked scan API. Scan now repeats without hanging up the T4.1. Working on adding security type to info display.
-
+- Updated "cyw43_scan.ino". Added security encryption decoding and updated scan results to display security types.
+ 
 ## This library may become obsolete depending on if the original author of QNEthernet creates a reworked version of QNEthernet adding WIFI support. 
 
  ## PINOUT:
@@ -53,10 +54,8 @@ Two new examples specific to the CYW4343W have been added:
 - cyw43_ping.ino
 - cyw43_scan.ino
 
-The wifi scan function still needs work. It will fail sometimes when doing repeated scans.
-
 ### Again this is work in progress and not much more effort will be put into it by myself until I know that further hardware development is happening.
-### Those with the other hardware and CYW4343x chip types at hand can do testing. I am curious to see what is working and what is not. Hardly any of the Arduino style Ethernet library has been tested yet. Much more work needs to be done.
+### Those with the other hardware and CYW4343x chip types at hand can do testing. I am curious to see what is working and what is not. Most of the Arduino style Ethernet library has been tested. Much more work needs to be done.
 
 [![Sponsor @ssilverman button](https://img.shields.io/badge/Sponsor-30363d.svg?logo=githubsponsors&logoColor=EA4AAA)](https://github.com/sponsors/ssilverman "Sponsor @ssilverman on GitHub")
 or
