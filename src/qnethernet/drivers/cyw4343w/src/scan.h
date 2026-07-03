@@ -3,11 +3,22 @@
 #ifndef SCAN_H
 #define SCANTYPE_ACTIVE_H
 
+int compareBSSID(const void *a, const void *b);
+
 class Scan {
 public:
-  int ScanNetworks();
+  
   int scan_start(void);
-//  char *mac_addr_str(char *s, uint8_t *mac);
+  uint8_t getScanCount(void);
+  simple_scan_result_t *getFilteredScanResults(void);
+  static int compareBSSID(const void *a, const void *b);
+  int removeDuplicates(void);
+
+protected:
+
+private:
+  simple_scan_result_t filtered_scan_results[MAX_SCAN_ENTRIES] = {};
+
 };
 // EOF
 #endif

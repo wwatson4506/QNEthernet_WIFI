@@ -43,20 +43,22 @@
 //#include "../firmware/brcmfmac43430-sdio.c"                // Zero: Firmware wl0: Oct 23 2017 03:55:53 version 7.45.98.38 (r674442 CY) FWID 01-e58d219f
 //#include "../firmware/w4343WA1_7_45_98_50_combined.h"      // CYW43: Firmware wl0: Apr 30 2018 04:14:19 version 7.45.98.50 (r688715 CY) FWID 01-283fcdb9
 //#include "../firmware/w4343WA1_7_45_98_102_combined.h"     // CYW43: Firmware wl0: Jun 18 2020 08:48:22 version 7.45.98.102 (r726187 CY) FWID 01-36dd36be
-#include "../firmware/brcmfmac43430-sdio-armbian.c"          // Firmware wl0: Mar 30 2021 01:12:21 version 7.45.98.118 (7d96287 CY) FWID 01-32059766
+//#include "../firmware/brcmfmac43430-sdio-armbian.c"          // Firmware wl0: Mar 30 2021 01:12:21 version 7.45.98.118 (7d96287 CY) FWID 01-32059766
+#include "../firmware/CYW4343W_SDIO_bin.c"          // Firmware wl0: Mar 30 2021 01:12:21 version 7.45.98.118 (7d96287 CY) FWID 01-32059766
 //#include "../firmware/cyfmac43430_fmac_7_45_98_125-sdio.c" // fmac:  Firmware wl0: Aug 16 2022 03:05:14 version 7.45.98.125 (5b7978c CY) FWID 01-f420b81d
 
 ////////////
 //NVRAM file
 /////////////
-#include "../firmware/wifi_nvram_4343W_zero.h"
-//#include "../firmware/wifi_nvram_1dx.h"
+//#include "../firmware/wifi_nvram_4343W_zero.h"
+#include "../firmware/wifi_nvram_1dx.h"
 
 //////////
 //CLM file
 //////////
 //#include "../firmware/cyfmac43430-sdio-1DX-clm_blob.c"
-#include "../firmware/cyfmac43430-sdio-1DX-clm_blob.h"
+//#include "../firmware/cyfmac43430-sdio-1DX-clm_blob.h"
+#include "../firmware/CYW4343W_clm_blob.c"
 
 void cwydump(unsigned char *memory, unsigned int len);
 

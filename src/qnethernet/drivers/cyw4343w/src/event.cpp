@@ -37,7 +37,7 @@ using namespace qindesign::network;
 
 static int num_handlers = 0; // Counter for number of event handlers.
 static IPADDR my_ip; // Local IP address variable.
-static uint8_t scan_count = 0;
+uint8_t scan_count = 0;
 
 Event local;
 static event_handler_t event_handlers[MAX_HANDLERS];
@@ -195,27 +195,23 @@ int Event::scan_event_handler(EVENT_INFO *eip)
     ESCAN_RESULT *erp=(ESCAN_RESULT *)eip->data;
     int ret = (eip->chan==SDPCM_CHAN_EVT) &&
               (eip->event_type==WLC_E_ESCAN_RESULT);
-    char temps[30];
-    if(ret) {
+    if(ret) { // Is this a scan event ?
+      // Check for scan completion.
       if(erp->eventh.status == 0) {
-        printf("Scan Entries: %d\n",scan_count);
-        printf("Scan complete\n");
-        scan_count = 0;
-        return(-1);
+	    return(-1); // Return completion.
+        // Check for invalid length info struct data length.
+        if((erp->info.ie_offset + erp->info.ie_length) > erp->info.length) {
+          erp->eventh.status = (uint32_t)-1; // set invalid
+          printf("Scan Failed\n");
+          return erp->eventh.status; // Return invalid status.
+        }
       } else {
-#if SHOW_HIDDEN == false
+#if SHOW_HIDDEN == false  // Skip displaying hidden sites if false.
         if(erp->info.SSID_len != 0) {
 #endif
-          scan_count++;
-          wifiCard.printMACAddress((uint8_t *)&erp->info.BSSID);
-          printf("%s", temps);
-          printf("  |  Signal Strength:  %d dBm", erp->info.RSSI);
-          printf("  |  Channel #%-2d | ", erp->info.chanspec & 0xFF);
+          scan_count++; // Start scan count at 1. 
+          parseScanResult(erp); // Parse Information Element RSN entries.
 
-//printf("  |  capability: %4.4x | ", SWAP16(erp->info.capability));
-
-          local.disp_ssid(&erp->info.SSID_len);
-          printf("\n");
 #if SHOW_HIDDEN == false
 	    }
 #endif
@@ -224,18 +220,112 @@ int Event::scan_event_handler(EVENT_INFO *eip)
     return(ret);
 }
 
-// Display SSID string that is prefixed with length byte
-void Event::disp_ssid(uint8_t *data)
-{
-    int i=*data++;
+// Parse out security type in IE RSN section and populate scan result array.
+uint32_t Event::parseScanResult(ESCAN_RESULT *evsrp) {
+    uint32_t security_mask = SEC_OPEN;
 
-  if(i == 0 || *data == 0) printf("[hidden]");
-  else if (i <= SSID_MAXLEN) {
-    while (i-- > 0)
-      putchar(*data++);
-  } else {
-    printf("[invalid length %u]", i);
-  }
+	if((evsrp->info.SSID_len == 0) || (strlen((char *)evsrp->info.SSID) == 0))
+	  strcpy((char *)evsrp->info.SSID, "[HIDDEN]\0");
+
+	// Start of the Information Elements loop
+    const uint8_t *ie_start = (uint8_t *)&evsrp->info + evsrp->info.ie_offset;
+
+    // Total length from start of ie_offset address.
+    uint32_t ie_len = evsrp->info.ie_length;
+    uint32_t parsed = 0;
+    bool has_rsn = false; // True if RSN IE_ID == 48 (0x30) found.
+    bool has_wpa = false; // True if AKM suite type == 0x00,0x50,0xF2,0x01 found.
+
+    // Work through IE entry looking for valid AKM suites.
+    while (parsed < ie_len) {
+        uint8_t ie_id = ie_start[parsed]; // Start at RSN EI_ID.
+        uint8_t ie_element_len = ie_start[parsed + 1]; // Get length of this IE.
+
+        // Ensure we do not overflow malicious/malformed frames
+        if (parsed + 2 + ie_element_len > ie_len) break;
+
+        const uint8_t *ie_data = &ie_start[parsed + 2]; // Skip over IE length word.
+
+        if (ie_id == DOT11_IE_ID_RSN) { // EI_ID = 48 (0x30)
+            has_rsn = true; // Valid IE_ID found.
+            // Optional: Parse deep into RSN AKM suites to check for WPA3 (SAE)
+            // If AKM suite count > 0, check suite type (OUI 00-0F-AC, Type 8 = SAE)
+            if (ie_element_len >= 18) {
+                // Quick look ahead for WPA3 SAE suite selector
+                for (int i = 0; i < ie_element_len - 4; i++) {
+                    if (memcmp(&ie_data[i], "\x00\x0F\xAC\x08", 4) == 0) {
+                        security_mask |= SEC_WPA3; // -----^^ type.
+                    }
+                }
+            }
+        } 
+        else if (ie_id == DOT11_IE_ID_VENDOR_SPECIFIC) {
+            // Check for WPA1 Vendor OUI: 00:50:F2 with Type 1
+            if (ie_element_len >= 4 && memcmp(ie_data, "\x00\x50\xF2\x01", 4) == 0) {
+                has_wpa = true; // -----------------------------------^^ type.
+            }
+        }
+        parsed += 2 + ie_element_len; // Move to next AKM suite.
+    }
+
+    // Custom security bitfield returns. Defined in event.h file.
+    //#define SEC_OPEN   0        // 0
+    //#define SEC_WEP    (1 << 0) // 1
+    //#define SEC_WPA    (1 << 1) // 2
+    //#define SEC_WPA2   (1 << 2) // 4
+    //#define SEC_WPA3   (1 << 3) // 8
+
+    // Evaluate flags using 802.11 rules combined with your raw IE checks.
+    if (evsrp->info.capability & DOT11_CAP_PRIVACY) { // Found in BSS info struct.
+        if (!has_rsn && !has_wpa) {
+            security_mask |= SEC_WEP;
+        }
+        if (has_wpa) {
+            security_mask |= SEC_WPA;
+        }
+        if (has_rsn && !(security_mask & SEC_WPA3)) {
+            security_mask |= SEC_WPA2;
+        }
+    }
+
+    const char* security_type_string;
+
+    // Convert the security type of the scan result to the corresponding
+    // security string (See Above defs).
+    switch (security_mask)
+    {
+    case SEC_OPEN:
+        security_type_string = "OPEN"; //SECURITY_OPEN;
+        break;
+    case SEC_WEP:
+        security_type_string = "WEP"; //SECURITY_WEP_PSK;
+        break;
+    case SEC_WPA:
+        security_type_string = "WPA"; //SECURITY_WPA_TKIP_PSK;
+        break;
+    case SEC_WPA2:
+        security_type_string = "WPA2"; //SECURITY_WPA2_MIXED_PSK;
+        break;
+    case SEC_WPA+SEC_WPA2:
+        security_type_string = "AUTO"; //SECURITY_AUTO; //SECURITY_WPA3_WPA2_PSK;
+        break;
+    case SEC_WPA3:
+        security_type_string = "AUTO"; //SECURITY_AUTO; // SECURITY_WPA3_SAE;
+        break;
+    }
+
+	// Fill in scan results array entry with the current scan entry index (scan_count).
+	MAC_CPY(scan_results[scan_count].bssid, evsrp->info.BSSID.octet);
+    strcpy((char *)scan_results[scan_count].ssid, (const char *)evsrp->info.SSID); 
+    scan_results[scan_count].signal_strength = evsrp->info.RSSI;
+    strcpy((char *)scan_results[scan_count].security, (const char *)security_type_string);
+    scan_results[scan_count].channel = evsrp->info.chanspec&0xff;
+    scan_results[scan_count].security_mask = security_mask;   
+    return security_mask;
+}
+
+simple_scan_result_t *Event::getScanResults(void) {
+  return scan_results;
 }
 
 // Handler for incoming ARP frame

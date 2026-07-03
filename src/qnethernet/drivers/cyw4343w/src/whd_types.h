@@ -753,6 +753,7 @@ typedef struct wl_bss_info_struct
     /* variable length Information Elements */
 } wl_bss_info_t;
 
+
 /** Structure for storing 802.11 powersave listen interval values \n
  *  See @ref whd_wifi_get_listen_interval for more information
  */

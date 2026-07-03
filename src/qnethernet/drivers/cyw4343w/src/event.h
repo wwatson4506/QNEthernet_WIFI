@@ -37,10 +37,12 @@
 #define GW_MS_DELAY 50
 #define NUM_ARP_ENTRIES 10
 
+#define MAX_SCAN_ENTRIES 80 // Initial entry count (less if not showing hidden sites).
+
+// Event handling
 #define EVT(e)      {e, #e}
 #define NO_EVTS     {EVT(-1)}
 //#define ESCAN_EVTS  {EVT(WLC_E_ESCAN_RESULT), EVT(-1)} // Original
-// Event handling
 const EVT_STR escan_evts[] = {EVT(WLC_E_ESCAN_RESULT), // PICOWI version
                               EVT(WLC_E_SET_SSID), 
                               EVT(-1)};
@@ -48,7 +50,6 @@ const EVT_STR escan_evts[] = {EVT(WLC_E_ESCAN_RESULT), // PICOWI version
         EVT(WLC_E_DEAUTH_IND), EVT(WLC_E_DISASSOC_IND), EVT(WLC_E_PSK_SUP), EVT(-1)}
 
 #pragma pack(1)
-
 // Ethernet header (sdpcm_ethernet_header_t)
 typedef struct {
     uint8_t dest_addr[6],
@@ -182,7 +183,7 @@ typedef struct {
 } SCAN_RESULT_HDR;
 
 // BSS info from EScan (part of wl_bss_info_t)
-typedef struct
+typedef struct BSS_INFO_STRUCT_T
 {
     uint32_t version;              // version field
     uint32_t length;               // byte length of data in this record, starting at version and including IEs
@@ -191,11 +192,16 @@ typedef struct
     uint16_t capability;           // Capability information
     uint8_t ssid_len;              // SSID length
     uint8_t ssid[32];              // Array to store SSID
-    uint32_t nrates;               // Count of rates in this set
-    uint8_t rates[16];             // rates in 500kbps units, higher bit set if basic
+    struct                         // Added 06-25-26 WW
+    {                              // Added 06-25-26 WW
+      uint32_t nrates;             // Count of rates in this set
+      uint8_t rates[16];           // rates in 500kbps units, higher bit set if basic
+    } rateset;                     // supported rates Added 06-25-26 WW
+uint8_t dummy;                     // Added 06-25-26 WW
     uint16_t channel;              // Channel specification for basic service set
     uint16_t atim_window;          // Announcement traffic indication message window size. Units are Kusec
     uint8_t dtim_period;           // Delivery traffic indication message period
+uint8_t dummy1;                    // Added 06-25-26 WW
     int16_t rssi;                  // receive signal strength (in dBm)
     int8_t phy_noise;              // noise (in dBm)
     // The following fields assume the 'version' field is 109 (0x6D)
@@ -212,6 +218,45 @@ typedef struct
     // Variable-length Information Elements follow, see cyw43_ll_wifi_parse_scan_result
 } BSS_INFO;
 
+typedef struct _cyw4343w_scan_result_internal_t {
+    uint32_t version;
+    uint32_t length;
+    uint8_t bssid[6];
+    uint16_t beacon_period;
+    uint16_t capability;
+    uint8_t ssid_len;
+    uint8_t ssid[32];
+    uint32_t rateset_count;
+    uint8_t rateset_rates[16];
+    uint16_t chanspec;
+    uint16_t atim_window;
+    uint8_t dtim_period;
+    int16_t rssi;
+    int8_t phy_noise;
+    uint8_t n_cap;
+    uint32_t nbss_cap;
+    uint8_t ctl_ch;
+    uint32_t reserved32[1];
+    uint8_t flags;
+    uint8_t reserved[3];
+    uint8_t basic_mcs[16];
+    uint16_t ie_offset;
+    uint32_t ie_length;
+    int16_t SNR;
+} cyw43_scan_result_internal_t;
+
+// For determining security type from a scan
+#define DOT11_CAP_PRIVACY             (0x0010)
+#define DOT11_IE_ID_RSN               (48)
+#define DOT11_IE_ID_VENDOR_SPECIFIC   (221)
+#define WPA_OUI_TYPE1                 "\x00\x50\xF2\x01"
+// Custom security bitfield returns
+#define SEC_OPEN   0        // 0
+#define SEC_WEP    (1 << 0) // 1
+#define SEC_WPA    (1 << 1) // 2
+#define SEC_WPA2   (1 << 2) // 4
+#define SEC_WPA3   (1 << 3) // 8
+
 // Escan result event (excluding 12-byte IOCTL header and BDC header)
 typedef struct {
     ETHER_HDR ether;
@@ -219,8 +264,44 @@ typedef struct {
     EVENT_HDR eventh;
     SCAN_RESULT_HDR scanh;
 //    BSS_INFO info;
-wl_bss_info_t info;
+   wl_bss_info_t info;
+//    cyw43_scan_result_internal_t info;
 } ESCAN_RESULT;
+
+/**
+ * Structure to store scan result parameters for each AP
+ * Modified to add security_mask term.
+ */
+typedef struct simple_scan_result {
+    uint8_t ssid[32];        /**< Service Set Identification (i.e. Name of Access Point)                    */
+    uint8_t bssid[6];        /**< Basic Service Set Identification (i.e. MAC address of Access Point)       */
+    int16_t signal_strength; /**< Receive Signal Strength Indication in dBm. <-90=Very poor, >-30=Excellent */
+    uint8_t security[15];    /**< Security type (Simple mask version) Leave room for longer descryption     */
+    uint8_t channel;         /**< Radio channel that the AP beacon was received on                          */
+	uint8_t security_mask;   /**< Security Type mask. Used in RSN for decoding security type                */
+} simple_scan_result_t;
+
+// Scan result Array. A smaller scan struct for usage processing and display of results.
+static simple_scan_result_t  __attribute__((unused)) scan_results[MAX_SCAN_ENTRIES];
+
+typedef struct {
+    uint32_t version;
+    uint16_t action,
+             sync_id;
+    uint32_t ssidlen;
+    uint8_t  ssid[SSID_MAXLEN],
+             bssid[6],
+             bss_type,
+             scan_type;
+    int32_t  nprobes,  // Needs to accommodate negative numbers. Was uint32_t
+             active_time,
+             passive_time,
+             home_time;
+    uint16_t nchans,
+             nssids;
+    uint8_t  chans[14][2],
+             ssids[1][SSID_MAXLEN];
+} SCAN_PARAMS;
 
 typedef struct
 {
@@ -236,6 +317,7 @@ typedef int (*event_handler_t)(EVENT_INFO *eip);
 class Event;
 class Event {
   public:
+  
   bool init();
   int get_gw_mac(struct netif *netif);
   int ipInit(IPADDR addr);
@@ -253,6 +335,8 @@ class Event {
   static int scan_event_handler(EVENT_INFO *eip);
   static int icmp_event_handler(EVENT_INFO *eip);
   static int arp_event_handler(EVENT_INFO *eip);
+  static uint32_t parseScanResult(ESCAN_RESULT *evsrp);
+  simple_scan_result_t *getScanResults(void);
   bool ip_find_arp(IPADDR addr, MACADDR mac);
   int ip_tx_arp(MACADDR mac, IPADDR addr, uint16_t op);
   int ip_make_arp(uint8_t *buff, MACADDR mac, IPADDR addr,uint16_t op);
@@ -277,10 +361,8 @@ class Event {
   void ip_cpy(uint8_t *dest, uint8_t *src);
   void ip_print_eth(uint8_t *buff);
   void print_ip_addr(IPADDR a);
-//  void print_ip_addr(IPADDR a);
   void print_ip_addrs(IPHDR *ip);
   char *mac_addr_str(char *s, uint8_t *mac);
-  void disp_ssid(uint8_t *data);
   void print_mac_addr(MACADDR mac);
   void ip_print_icmp(IPHDR *ip);
   void ip_print_arp(ARPKT *arp);
@@ -312,4 +394,5 @@ class Event {
 				  };
 
 };
+extern Event event;
 #endif
