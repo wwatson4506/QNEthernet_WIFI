@@ -97,7 +97,7 @@ void loop() {
   Serial.printf("\nScan Entries = %u\n",scan_entries);
   PRINT_SCAN_TEMPLATE();
   for(int i = 0; i < scan_entries; i++) {
-    Serial.printf(" %2u    %-32s     %4d     %2d      %02X:%02X:%02X:%02X:%02X:%02X    %-5s  (%lu)\n",
+    Serial.printf(" %2u    %-32s     %4d dBm   %2d    %02X:%02X:%02X:%02X:%02X:%02X    %-5s  (%lu)\n",
          i+1,
          sr[i].ssid,
          sr[i].signal_strength,
@@ -114,9 +114,9 @@ void loop() {
 
   Serial.printf("Scan complete\n");
 
-//  waitForInput();
-  Serial.printf("Wait for next scan...\n");
-  delay(5000);
+  waitForInput();
+//  Serial.printf("Wait for next scan...\n");
+//  delay(5000);
 }
 
 // After testing finished,
