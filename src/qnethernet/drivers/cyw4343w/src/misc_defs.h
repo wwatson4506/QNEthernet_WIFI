@@ -21,7 +21,7 @@
 //#define USE_DEBUG_MODE 1
 
 // Show hidden sites during scan.
-#define SHOW_HIDDEN true
+#define SHOW_HIDDEN false
 //---------------------------------------------------
 
 
