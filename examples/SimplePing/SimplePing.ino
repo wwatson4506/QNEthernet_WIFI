@@ -17,8 +17,6 @@
 #include <cstdint>
 
 #include <QNEthernet.h>
-#include <lwip/etharp.h>
-#include "../src/qnethernet/drivers/cyw4343w/src/event.h"
 
 using namespace qindesign::network;
 
@@ -31,12 +29,10 @@ constexpr uint32_t kDHCPTimeout = 15000;  // 15 seconds
 constexpr unsigned long kPingInterval = 1000;  // 1 second
 
 constexpr char kHostname[]{"arduino.cc"};
-//constexpr char kHostname[]{"pjrc.com"};
 
 // --------------------------------------------------------------------------
 //  Program State
 // --------------------------------------------------------------------------
-Event evnt;
 
 namespace {  // Internal linkage section
 
@@ -58,21 +54,19 @@ void setup() {
   while (!Serial && (millis() < 4000)) {
     // Wait for Serial
   }
-  printf("Starting...\r\n");
 
-  printf("Starting Ethernet with DHCP...\r\n");
+  printf("Starting...\r\n");
+  printf("Please Wait...\n");
   if (!Ethernet.begin()) {
     printf("Failed to start Ethernet\r\n");
     return;
   }
 
-//  evnt.add_event_handler(icmp_event_handler);
-//  evnt.add_event_handler(arp_event_handler);
-
   uint8_t mac[6];
   Ethernet.macAddress(mac);  // This is informative; it retrieves, not sets
   printf("MAC = %02x:%02x:%02x:%02x:%02x:%02x\r\n",
          mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+
   printf("Waiting for local IP...\r\n");
   if (!Ethernet.waitForLocalIP(kDHCPTimeout)) {
     printf("Failed to get IP address from DHCP\r\n");
@@ -80,8 +74,6 @@ void setup() {
   }
 
   IPAddress ip = Ethernet.localIP();
-  IPADDR ipcnvrt = {ip[0], ip[1], ip[2], ip[3]}; // Make this a macro
-  evnt.ipInit(ipcnvrt); // 
   printf("    Local IP    = %u.%u.%u.%u\r\n", ip[0], ip[1], ip[2], ip[3]);
   ip = Ethernet.subnetMask();
   printf("    Subnet mask = %u.%u.%u.%u\r\n", ip[0], ip[1], ip[2], ip[3]);
@@ -96,6 +88,7 @@ void setup() {
     printf("Failed to look up host (%s)\r\n", kHostname);
     return;
   }
+
   printf("Pinging %s (%u.%u.%u.%u)...\r\n",
          kHostname, hostIP[0], hostIP[1], hostIP[2], hostIP[3]);
 
@@ -111,7 +104,6 @@ void loop() {
   ++pingCounter;
 
   printf("%" PRIu32 ". ", pingCounter);
-
   long rtt = Ethernet.ping(hostIP);
   if (rtt >= 0) {
     printf("Time = %ld ms\r\n", rtt);
@@ -121,4 +113,3 @@ void loop() {
     pingTimer = millis();
   }
 }
-

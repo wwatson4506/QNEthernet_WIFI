@@ -48,7 +48,7 @@ void setup() {
     // Wait for Serial
   }
   Serial.println("Starting...");
-
+  printf("Please Wait...\n");
 
   // Initialize Ethernet, in this case with DHCP
   Serial.println("Starting Ethernet with DHCP...");
@@ -56,11 +56,13 @@ void setup() {
     Serial.println("Failed to start Ethernet");
     return;
   }
+
   // Print the MAC address
   uint8_t mac[6];
   Ethernet.macAddress(mac);  // This is informative; it retrieves, not sets
   Serial.printf("MAC = %02x:%02x:%02x:%02x:%02x:%02x\r\n",
                 mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+
   printf("Waiting for local IP...\r\n");
   if (!Ethernet.waitForLocalIP(kDHCPTimeout)) {
     Serial.println("Failed to get IP address from DHCP");

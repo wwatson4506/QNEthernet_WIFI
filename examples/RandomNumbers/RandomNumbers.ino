@@ -5,9 +5,9 @@
 // and engines using the included entropy functions.
 //
 // See also:
-// * https://en.cppreference.com/w/cpp/numeric/random#Random_number_distributions
-// * https://en.cppreference.com/w/cpp/named_req/UniformRandomBitGenerator
-// * https://en.cppreference.com/w/cpp/named_req/RandomNumberEngine
+// * https://www.cppreference.com/cpp/numeric/random#Random_number_distributions
+// * https://www.cppreference.com/cpp/named_req/UniformRandomBitGenerator
+// * https://www.cppreference.com/cpp/named_req/RandomNumberEngine
 //
 // This file is part of the QNEthernet library.
 
@@ -21,7 +21,7 @@
 #include <QNEthernet.h>
 
 // This class mimics std::random_device.
-using random_device = qindesign::security::random_device;
+using random_device = qindesign::entropy::random_device;
 
 // -------------------------------------------------------------------
 //  Program State

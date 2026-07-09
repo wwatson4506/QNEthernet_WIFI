@@ -23,7 +23,6 @@
 
 #include <QNEthernet.h>
 #include <qnethernet/QNPing.h>
-#include "../src/qnethernet/drivers/cyw4343w/src/event.h"
 
 using namespace qindesign::network;
 
@@ -36,21 +35,19 @@ constexpr uint32_t kDHCPTimeout = 15000;  // 15 seconds
 constexpr unsigned long kPingInterval = 1000;  // 1 second
 
 constexpr char kHostname[]{"arduino.cc"};
-//constexpr char kHostname[]{"pjrc.com"};
 
 constexpr uint8_t kPingTTL = 64;
 constexpr uint16_t kPingId = 0x514E;
-constexpr size_t kPayloadSize = 32;//56;
+constexpr size_t kPayloadSize = 56;
 
 static_assert(kPayloadSize >= 4, "Payload size must be >= 4");
 
 // --------------------------------------------------------------------------
 //  Program State
 // --------------------------------------------------------------------------
-Event evnt;
-extern uint8_t my_mac[6];
 
 namespace {  // Internal linkage section
+
 bool running = false;  // Whether the program is still running
 
 IPAddress pingIP;
@@ -76,9 +73,6 @@ void replyCallback(const PingData& reply);
 
 // Ping object, for sending and receiving echo requests and replies.
 static Ping ping{&replyCallback};
-  uint8_t mac[6];
-
-//MACADDR ipmac = {0x50,0xc2,0xe8,0x76,0x3d,0x3b};
 
 // Program setup.
 void setup() {
@@ -86,14 +80,15 @@ void setup() {
   while (!Serial && (millis() < 4000)) {
     // Wait for Serial
   }
-  printf("Starting...\r\n");
 
-  printf("Starting Ethernet with DHCP...\r\n");
+  printf("Starting...\r\n");
+  printf("Please Wait...\n");
   if (!Ethernet.begin()) {
     printf("Failed to start Ethernet\r\n");
     return;
   }
 
+  uint8_t mac[6];
   Ethernet.macAddress(mac);  // This is informative; it retrieves, not sets
   printf("MAC = %02x:%02x:%02x:%02x:%02x:%02x\r\n",
          mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
@@ -105,8 +100,6 @@ void setup() {
   }
 
   IPAddress ip = Ethernet.localIP();
-  IPADDR ipcnvrt = {ip[0], ip[1], ip[2], ip[3]}; // Make this a macro
-  evnt.ipInit(ipcnvrt); // 
   printf("    Local IP    = %u.%u.%u.%u\r\n", ip[0], ip[1], ip[2], ip[3]);
   ip = Ethernet.subnetMask();
   printf("    Subnet mask = %u.%u.%u.%u\r\n", ip[0], ip[1], ip[2], ip[3]);
@@ -134,7 +127,6 @@ void setup() {
   }
 }
 
-
 // Main program loop.
 void loop() {
   if (!running || ((millis() - pingTimer) < kPingInterval)) {
@@ -146,14 +138,6 @@ void loop() {
   }
   replyReceived = false;
 
-/*
-  const PingData req{.ip       = pingIP,
-                     .ttl      = kPingTTL,
-                     .id       = kPingId,
-                     .seq      = seq++,
-                     .data     = payload.data(),
-                     .dataSize = payload.size()};
-*/
   const PingData req{.ip       = pingIP,
                      .ttl      = kPingTTL,
                      .id       = kPingId,

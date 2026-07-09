@@ -24,37 +24,60 @@
 #include <QNEthernet.h>
 #include "../src/qnethernet/drivers/cyw4343w/src/cyw43_T4_SDIO.h"
 #include "../src/qnethernet/drivers/cyw4343w/src/event.h"
-#include "../src/qnethernet/drivers/cyw4343w/src/secrets.h"
+#include "../src/secrets.h"
 #include "../src/qnethernet/drivers/cyw4343w/src/join.h"
 #include "../src/qnethernet/drivers/cyw4343w/src/ping.h"
 
 using namespace qindesign::network;
 
+Join pingJoin;
+Ping myping;
 Event evnt;
 
 // After testing finished,
 void waitForInput(); // to be removed later.
 extern void cwydump(unsigned char *memory, unsigned int len); // To be removed later.
 
-#define PING_DATA_SIZE      64 //32
-#define PING_COUNT     0 // Set to zero for continuous run.
+#define PING_RESP_USEC      200000
+extern MACADDR gw_mac;
 
+constexpr uint16_t pingCount    = 10; // Set to zero for continuous run. Default = 10.
 constexpr uint32_t kDHCPTimeout = 15000;  // 15 seconds
+constexpr unsigned long kPingInterval = 1000;  // 1 second
 
-//constexpr char kHostname[]{"pjrc.com"};
-//constexpr char kHostname[]{"pool.ntp.org"};
-constexpr char kHostname[]{"arduino.cc"};
-//constexpr char kHostname[]{"www.raspberrypi.org"};
+//******************************************
+// Un-comment one and only one host to ping.
+//******************************************
+//constexpr char pHostname[]{"pjrc.com"};
+//constexpr char pHostname[]{"pool.ntp.org"};
+constexpr char pHostname[]{"arduino.cc"};
+//constexpr char pHostname[]{"www.raspberrypi.org"};
 
+constexpr char lHostname[]{"wwatsonT41"}; // Set to your desired host name.
+
+namespace {  // Internal linkage section
+bool running = false;  // Whether the program is still running
 IPAddress pingIP;
-BYTE ping_data[PING_DATA_SIZE];
+uint8_t ping_data[pingDataSize];
+uint16_t seq = 0; 
+unsigned long pingTimer = millis() - kPingInterval;  // Start expired
+bool replyReceived = false;  // Indicates if the current reply has
+                             // been received
+uint32_t pingCounter = 0;
+uint32_t ping_ticks;
 err_t err = ERR_OK;
+}  // namespace
 
-void setup()
-{
+// Forward declarations
+void echoCallback(const PING_DATA& reply);
+
+// Ping object, for sending and receiving echo requests and replies.
+static Ping ping{&echoCallback};
+
+void setup() {
   Serial.begin(115200);
   // wait for serial port to connect.
-  while (!Serial && millis() < 5000) {}
+  while (!Serial && millis() < 5000) {;}
   Serial.printf("%c",12);
 
   if(CrashReport) {
@@ -67,14 +90,19 @@ void setup()
   for(uint8_t i=0; i<sizeof(ping_data); i++) ping_data[i] = i;
   
   // Setup ARP and ICMP handelers.
-  evnt.add_event_handler(arp_event_handler);
-  evnt.add_event_handler(icmp_event_handler);
+  evnt.add_event_handler(evnt.arp_event_handler);
+  evnt.add_event_handler(evnt.icmp_event_handler);
+
+  Ethernet.setHostname(lHostname); // Set local host name.
 
   Serial.printf("Starting Ethernet with DHCP...\r\n");
+  printf("Please Wait...\n");
   if (!Ethernet.begin()) {
     Serial.printf("Failed to start Ethernet\r\n");
     return;
   }
+
+  printf("hostname = %s\n",Ethernet.hostname());
 
   // Get local MAC address and show it.
   uint8_t mac[6];
@@ -101,31 +129,93 @@ void setup()
   Serial.printf("    DNS         = %u.%u.%u.%u\r\n", ip[0], ip[1], ip[2], ip[3]);
   Serial.printf("\r\n");
   
-  // Look up the hostname
-  Serial.printf("Looking up \"%s\"...", kHostname);
-  if (Ethernet.hostByName(kHostname, pingIP)) {
+  // Look up the hostname to be pinged.
+  Serial.printf("Looking up \"%s\"...", pHostname);
+  if (Ethernet.hostByName(pHostname, pingIP)) {
     Serial.printf("\r\nIP = %u.%u.%u.%u\r\n",
            pingIP[0], pingIP[1], pingIP[2], pingIP[3]);
+    running = true;
   } else {
     Serial.printf("HALTING!! Faied to get host IP: errno=%d\r\n", errno);
     while(1) {;}
   }
+  myping.setCallback(echoCallback);
   initPing();
-  err = get_gw_mac(netif_default);
-  if(err != ERR_OK) Serial.printf("Get Gateway MAC FAILED: %d\n",err);
 }
 
 void loop() {
-  IPADDR pingIPcnvrt = {pingIP[0], pingIP[1], pingIP[2], pingIP[3]};
-  if(cyw43_ping(pingIPcnvrt, ping_data, PING_COUNT) == false)
+  if (!running || ((millis() - pingTimer) < kPingInterval)) {
+    return;
+  }
+  replyReceived = false;
+  PING_DATA pingReq { .dip = {pingIP[0], pingIP[1], pingIP[2], pingIP[3]},
+	                  .ttl = pingTTL,
+	                  .ident = pingId,
+	                  .seq = ++seq,
+	                  .data = ping_data,
+	                  .dataSize = pingDataSize};
+  if(cyw43_ping(pingReq) == false) {
 	Serial.printf("Ping Failed\n");
-  waitForInput();
+	pingJoin.join_state_poll((char *)MY_SSID, (char *)MY_PASSPHRASE, SECURITY);
+  }
+  pingTimer = millis();
+  ustimeout(&ping_ticks, 0); // Clear ping response timer.
+  // Perform one transfer. Poll for reply checking for a timeout.
+  while(1) {
+    evnt.pollEvents(); // Have to poll event handler.
+    if(!replyReceived && (ustimeout(&ping_ticks, PING_RESP_USEC))) {
+	  printf("%" PRIu32 ". Timeout\r\n", pingCounter);
+	  break;
+    } else if(replyReceived) {
+	  break;
+	}
+  }
+  pingCounter++;
+  // If pingCount = 0 then run in continous mode else do pingCount interations.
+  if((pingCount > 0) && (pingCounter == pingCount)) {
+	waitForInput();
+	pingCounter = seq = 0; // Reset loop and sequence counters.
+  }
+}
+
+// The Echo Reply callback.
+void echoCallback(const PING_DATA& reply) {
+  if (reply.ident != pingId) {
+    return;
+  }
+
+  // Check that the payload data matches
+  bool payloadMatches =
+      (reply.dataSize == pingDataSize) &&
+      std::equal(&reply.data[0], &reply.data[pingDataSize], &ping_data[0]);
+  Serial.printf("%lu ",pingCounter);
+  Serial.printf("%d bytes from server (%u.%u.%u.%u)-""%s"" ",
+  reply.dataSize, reply.dip[0], reply.dip[1], reply.dip[2], reply.dip[3],
+  pHostname);
+  Serial.printf("seq=%d ",htons(reply.seq));
+  Serial.printf("ttl=%d",reply.ttl);
+  Serial.printf(" time=%lu ms\r\n",millis() - pingTimer);
+  Serial.printf("%s", payloadMatches ? "" : "(payload mismatch) ");
+
+  replyReceived = true;
+}
+
+void initPing(void) {
+  err = evnt.get_gw_mac(netif_default);
+  if(err != ERR_OK) Serial.printf("Get Gateway MAC FAILED: %d\n",err);
+  ustimeout(&ping_ticks, 0);
+}	
+
+bool cyw43_ping(PING_DATA &req) {
+  if(pingJoin.link_check() != 1) return false; 
+  evnt.ip_tx_icmp(gw_mac, req.dip, ICREQ, 0, &req);
+  return true;
 }
 
 // After testing finished,
 void waitForInput() // to be removed later.
 {
-  Serial.println("Finished: Press any key to try again...");
+  Serial.println("Finished: Press any key to run again...");
   while (Serial.read() == -1) ;
   while (Serial.read() != -1) ;
 }
