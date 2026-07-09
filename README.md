@@ -1,10 +1,70 @@
+# This is a version of QNEthernet for use with the CYW4343W WIFI card. Most QNEthernet examples except for ping.ino and simplePing.ino are tested and seem to work.
+# THIS IS WORK IN PROGRESS. NO GUARANTEES AT All!! THE ORIGINAL AUTHOR IS NOT RESPONSIBLE FOR ANY OF THIS MODIFIED CODE!!
+## This version is a cleanup of the library:
+- Converted all files to C++.
+- Completely reworked the ping API and sketch.
+- Added a print debug switch to enable or disable printing debug information during initialization. Will be expanded later.
+- Moved "secrets.h" file to "QNEthernet_WiFI/src/secrets.h". @defragster.
+- Added guards against trying to use the default SSID and password in "QNEthernet_WiFI/src/secrets.h". Will throw a descriptive error.
+- Removed some unused code.
+- Updated "cyw43_scan.ino". Still needs work for intermittent failures.
+
+## This library may become obsolete depending on if the original author of QNEthernet creates a reworked version of QNEthernet adding WIFI support. 
+
+ ## PINOUT:
+TEENSY 4.1   WIFI Board
+- 23 --------> clk
+- 22 --------> cmd
+- 17 --------> D2
+- 16 --------> D3
+- 41 --------> D1
+- 40 --------> D0
+- 34 --------> INT
+- 33 --------> WL_ON
+## To use the examples with the wifi card you must first edit the "QNEthernet/src/qnethernet/drivers/cyw4343w/src/secrets.h" file:
+```
+// The secrets file
+
+// SSID
+#define MY_SSID            "yourSSID"
+
+//PASSPHRASE
+#define MY_PASSPHRASE      "yourPWD"
+
+// Security settings: 0 for none, 1 for WPA_TKIP, 2 for WPA2
+// The hard-coded password is for test purposes only!!!
+#define SECURITY        2
+```
+
+Set MY_SSID to your network wifi name and set MY_PASSPHRASE to your chosen password. Set SECURITY to one of the three types.
+
+Most all of the examples seem to work. Some have not been tested. Right now simplePing.ino and ping.ino are not working. More work to do on those. 
+
+This branch of the QNEthernet (CYW4343W_WIP) library will allow you to use both wired and wifi ethernet on the Teensy4.1.
+This define in QNEthernet_opts.h switches betweeen the two:
+```
+// 1 == Disable T41 native ethernet IF and enable T41 CYW4343W IF.
+// 0 == Enable T41 native ethernet IF and disable T41 CYW4343W IF.
+#ifndef ARDUINO_TEENSY41_CYW4343W
+#define ARDUINO_TEENSY41_CYW4343W 1
+#endif
+```
+Two new examples specific to the CYW4343W have been added:
+- cyw43_ping.ino
+- cyw43_scan.ino
+
+The wifi scan function still needs work. It will fail sometimes when doing repeated scans.
+
+### Again this is work in progress and not much more effort will be put into it by myself until I know that further hardware development is happening.
+### Those with the other hardware and CYW4343x chip types at hand can do testing. I am curious to see what is working and what is not. Hardly any of the Arduino style Ethernet library has been tested yet. Much more work needs to be done.
+
 [![Sponsor @ssilverman button](https://img.shields.io/badge/Sponsor-30363d.svg?logo=githubsponsors&logoColor=EA4AAA)](https://github.com/sponsors/ssilverman "Sponsor @ssilverman on GitHub")
 or
 [![Buy Me a Coffee donate button](https://img.shields.io/badge/buy%20me%20a%20coffee-donate-orange.svg?logo=buy-me-a-coffee&logoColor=FFDD00)](https://www.buymeacoffee.com/ssilverman "Donate to this project using Buy Me a Coffee")
 
 # _QNEthernet_, an lwIP-Based Ethernet Library For Teensy 4.1 and other platforms
 
-_Version: 0.37.0-snapshot_
+_Version: 0.36.0-snapshot_
 
 The _QNEthernet_ library provides Ethernet functionality for the Teensy 4.1 and
 possibly some other platforms. It's designed to be compatible with the
@@ -65,7 +125,6 @@ lwIP release.
     1. [Promiscuous mode](#promiscuous-mode)
     2. [Raw frame receive buffering](#raw-frame-receive-buffering)
     3. [Raw frame loopback](#raw-frame-loopback)
-    4. [Raw frame filter hook](#raw-frame-filter-hook)
 15. [How to implement VLAN tagging](#how-to-implement-vlan-tagging)
 16. [Application layered TCP: TLS, proxies, etc.](#application-layered-tcp-tls-proxies-etc)
     1. [About the allocator functions](#about-the-allocator-functions)
@@ -190,9 +249,9 @@ For API additions beyond what the Arduino-style API provides, see:\
   `using` directive:
   ```c++
   using namespace qindesign::network;
-
+  
   EthernetUDP udp;
-
+  
   void setup() {
     Ethernet.begin();
   }
@@ -201,9 +260,9 @@ For API additions beyond what the Arduino-style API provides, see:\
   something shorter. For example:
   ```c++
   namespace qn = qindesign::network;
-
+  
   qn::EthernetUDP udp;
-
+  
   void setup() {
     qn::Ethernet.begin();
   }
@@ -269,7 +328,7 @@ The `Ethernet` object is the main Ethernet interface.
   local IP and subnet mask. If Ethernet is not initialized then this will return
   255.255.255.255.
 * `dnsServerIP(index)`: Gets a specific DNS server IP address. This returns
-  `INADDR_NONE` if the index is not in the exclusive range,
+  `INADDR_NONE` if the index not in the exclusive range,
   [0, `DNSClient::maxServers()`).
 * `driverCapabilities()`: Returns a `DriverCapabilities` struct containing the
   driver's set of capabilities.\
@@ -289,7 +348,7 @@ The `Ethernet` object is the main Ethernet interface.
 * `isDHCPActive()`: Returns whether DHCP is active.
 * `isDHCPEnabled()`: Returns whether the DHCP client is enabled. This is valid
   whether Ethernet has been started or not.
-* `linkInfo()`: Returns a `LinkInfo` struct containing information about
+* `linkInfo()` : Returns a `LinkInfo` struct containing information about
   the link.
 * `linkState()`: Returns a `bool` indicating the link state. This returns `true`
   if the link is on and `false` otherwise. This may be managed manually
@@ -737,8 +796,8 @@ bool isConnected() {
 ```
 
 See also:
-1. [The safe bool problem](https://www.cppreference.com/cpp/language/implicit_conversion#The_safe_bool_problem)
-2. [`explicit` specifier](https://www.cppreference.com/cpp/language/explicit)
+1. [The safe bool problem](https://en.cppreference.com/w/cpp/language/implicit_conversion#The_safe_bool_problem)
+2. [`explicit` specifier](https://en.cppreference.com/w/cpp/language/explicit)
 
 ### Use of `errno`
 
@@ -815,14 +874,13 @@ Since the underlying lwIP stack depends on the link being up in order to operate
 properly, a project will need to manage the link state itself for those drivers.
 The suggestion is this:
 1. Start Ethernet as you normally would.
-2. If successful, check `Ethernet.driverCapabilities().isLinkStateDetectable`.
+2. If successful, check `Ethernet.driverCapabilities().hasLinkState`.
 3. If `false`, then call `Ethernet.setLinkState(true)`.
 
 Code example:
 
 ```c++
-if (ethernet_is_started &&
-    !Ethernet.driverCapabilities().isLinkStateDetectable) {
+if (ethernet_is_started && !Ethernet.driverCapabilities().hasLinkState) {
   Ethernet.setLinkState(true);
 }
 ```
@@ -835,10 +893,10 @@ then there are two things to be aware of:
 1. `Ethernet.loop()` needs to be called regularly somewhere. One good place is
    at the end of the main program loop.
 2. Any library functions that use `yield()` while waiting for an event, say in
-  `Ethernet.waitForLocalIP()` or `EthernetClient::connect()`, need to call
-  `Ethernet.loop()` during the wait, otherwise the stack won't move forward and
-  the event will never occur. A good place to do this is after the
-  `yield()` call.
+    `Ethernet.waitForLocalIP()` or `EthernetClient::connect()`, need to call
+    `Ethernet.loop()` during the wait, otherwise the stack won't move forward and
+    the event will never occur. A good place to do this is after the
+    `yield()` call.
 
 To accomplish #2, there is a configuration macro,
 `QNETHERNET_DO_LOOP_IN_YIELD`, that enables a call to `Ethernet.loop()` after
@@ -1064,11 +1122,11 @@ definition of "packet" specific to your application. For example, after sending
 a web page to a client or after a chunk of data is ready for the server
 to process.
 
-There is a configuration option, `QNETHERNET_FLUSH_AFTER_TCP_WRITE`, that causes
-an automatic flush after data is written. However, this may reduce TCP
-efficiency. This option is for use with hard-to-modify code or libraries that
-assume data will get sent immediately. The preferred approach is to call flush()
-in the code or library.
+There is a configuration option, `QNETHERNET_FLUSH_AFTER_WRITE`, that causes an
+automatic flush after data is written. However, this may reduce TCP efficiency.
+This option is for use with hard-to-modify code or libraries that assume data
+will get sent immediately. The preferred approach is to call flush() in the code
+or library.
 
 ## A note on the examples
 
@@ -1396,12 +1454,8 @@ over Ethernet. It uses 01-1B-19-00-00-00 for forwardable frames and
 01-80-C2-00-00-0E for non-forwardable frames. See
 [PTP Message Transport](https://en.wikipedia.org/wiki/Precision_Time_Protocol#Message_transport)
 
-To enable raw frame support, set the `QNETHERNET_ENABLE_RAW_FRAME_SUPPORT` macro
-to `1`. This will use some space.
-
-Note: In the Teensy 4.1 driver, when raw frame support is enabled, checksums for
-non-raw frames are generated by the lwIP stack and not by the accelerator. This
-may affect performance.
+To disable raw frame support, set the `QNETHERNET_ENABLE_RAW_FRAME_SUPPORT`
+macro to `0`. This will use a little less space.
 
 ### Promiscuous mode
 
@@ -1429,20 +1483,6 @@ Raw frames having a destination MAC address that matches the local MAC address
 or the broadcast MAC address can optionally be looped back up the stack. To
 disable this feature, set the `QNETHERNET_ENABLE_RAW_FRAME_LOOPBACK` macro
 to `0`.
-
-### Raw frame filter hook
-
-It's possible to enable a hook function that examines all incoming frames to
-determine whether to bypass the stack entirely and send the frame directly to
-the raw frame API.
-
-Steps to use:
-1. Set the `QNETHERNET_ENABLE_RAW_FRAME_FILTER_HOOK` macro to `1`
-2. Implement a C function (declare with `extern "C"`) having this signature:\
-   `bool qnethernet_raw_frame_filter(struct pbuf*p, struct netif* netif)`
-
-Inside that function, return true if the frame should be passed directly to the
-raw frame API, and false if the frame should be passed to the stack.
 
 ## How to implement VLAN tagging
 
@@ -1815,7 +1855,7 @@ The _Entropy_ library does essentially the same things as the internal TRNG
 functions, it just requires an additional dependency. This is the reason these
 functions are provided: to remove that dependency.
 
-See the function declarations in _src/qnethernet/entropy/entropy.h_ if you want
+See the function declarations in _src/qnethernet/security/entropy.h_ if you want
 to use them yourself.
 
 If the target device isn't a Teensy 4 then the _Entropy_ library will be used,
@@ -1825,15 +1865,15 @@ instance of `std::minstd_rand` will be used.
 ### The `random_device` _UniformRandomBitGenerator_
 
 Also provided is a class called `random_device` that implements the
-[_UniformRandomBitGenerator_](https://www.cppreference.com/cpp/named_req/UniformRandomBitGenerator)
+[_UniformRandomBitGenerator_](https://en.cppreference.com/w/cpp/named_req/UniformRandomBitGenerator)
 C++ named requirement and also mimics `std::random_device`. It's in the
-`qindesign::entropy` namespace.
+`qindesign::security` namespace.
 
 This object works with both the internal entropy functions and with the
 _Entropy_ library.
 
 This is the preferred way to acquire entropy. It is meant to be used with a
-[Random number distribution](https://www.cppreference.com/cpp/numeric/random#Random_number_distributions).
+[Random number distribution](https://en.cppreference.com/w/cpp/numeric/random#Random_number_distributions).
 
 ## Interference mitigation
 
@@ -1907,11 +1947,10 @@ The _QNEthernet_-specific macros are as follows:
 | `QNETHERNET_ENABLE_PING_REPLY`               | Enabled  | Enables ICMP echo reply support                                                                | [Ping reply](#ping-reply)                                                                |
 | `QNETHERNET_ENABLE_PING_SEND`                | Enabled  | Enables ICMP echo support (including raw IP support)                                           | [Ping](#ping)                                                                            |
 | `QNETHERNET_ENABLE_PROMISCUOUS_MODE`         | Disabled | Enables promiscuous mode                                                                       | [Promiscuous mode](#promiscuous-mode)                                                    |
-| `QNETHERNET_ENABLE_RAW_FRAME_FILTER_HOOK`    | Disabled | Enables a raw frame filter hook for determining whether to bypass the stack                    | [Raw frame filter hook](#raw-frame-filter-hook)                                          |
 | `QNETHERNET_ENABLE_RAW_FRAME_LOOPBACK`       | Enabled  | Enables raw frame loopback when the destination MAC matches the local MAC or the broadcast MAC | [Raw frame loopback](#raw-frame-loopback)                                                |
-| `QNETHERNET_ENABLE_RAW_FRAME_SUPPORT`        | Disabled | Enables raw frame support                                                                      | [Raw Ethernet frames](#raw-ethernet-frames)                                              |
+| `QNETHERNET_ENABLE_RAW_FRAME_SUPPORT`        | Enabled  | Enables raw frame support                                                                      | [Raw Ethernet Frames](#raw-ethernet-frames)                                              |
 | `QNETHERNET_ENABLE_SECURE_TCP_ISN`           | Enabled  | Enables secure TCP initial sequence numbers (ISNs)                                             | [Secure TCP initial sequence numbers (ISNs)](#secure-tcp-initial-sequence-numbers-isns)  |
-| `QNETHERNET_FLUSH_AFTER_TCP_WRITE`           | Disabled | Follows every `EthernetClient::write()` call with a flush; may reduce efficiency               | [Write immediacy](#write-immediacy)                                                      |
+| `QNETHERNET_FLUSH_AFTER_WRITE`               | Disabled | Follows every `EthernetClient::write()` call with a flush; may reduce efficiency               | [Write immediacy](#write-immediacy)                                                      |
 | `QNETHERNET_LWIP_MEMORY_IN_RAM1`             | Disabled | Puts lwIP-declared memory into RAM1                                                            | [Notes on RAM1 usage (Teensy 4)](#notes-on-ram1-usage-teensy-4)                          |
 | `QNETHERNET_PROVIDE_ALTCP_DEFAULT_FUNCTIONS` | Disabled | Provides default implementations of the altcp interface functions                              | [Application layered TCP: TLS, proxies, etc.](#application-layered-tcp-tls-proxies-etc)  |
 | `QNETHERNET_PROVIDE_TEENSY_SETTIMEOFDAY`     | Enabled  | Provides a settimeofday() implementation for Teensy                                            |                                                                                          |
@@ -1929,7 +1968,7 @@ features, thus saving space.
 
 ### Configuring macros using the Arduino IDE
 
-_[Current as of this writing: Arduino IDE 2.3.10, Teensyduino 1.62]_
+_[Current as of this writing: Arduino IDE 2.3.7, Teensyduino 1.60-beta5]_
 
 The Arduino IDE provides a facility to override the build options specified in a
 platform's build configuration file, _platform.txt_. It does this by looking for
@@ -1950,7 +1989,7 @@ Here's how to implement the behaviour:
    ```properties
    # This can be overridden in boards.txt
    build.extra_flags=
-
+   
    # These can be overridden in platform.local.txt
    compiler.c.extra_flags=
    compiler.cpp.extra_flags=
@@ -1975,8 +2014,8 @@ enable raw frame support and disable DNS using the macros (the '-D' option
 defines a macro):
 
 ```properties
-compiler.cpp.extra_flags=-DQNETHERNET_ENABLE_RAW_FRAME_SUPPORT=1 -DLWIP_DNS=0
-compiler.c.extra_flags=-DQNETHERNET_ENABLE_RAW_FRAME_SUPPORT=1 -DLWIP_DNS=0
+compiler.cpp.extra_flags=-DQNETHERNET_ENABLE_RAW_FRAME_SUPPORT=0 -DLWIP_DNS=0
+compiler.c.extra_flags=-DQNETHERNET_ENABLE_RAW_FRAME_SUPPORT=0 -DLWIP_DNS=0
 ```
 
 Each additional option is simply appended. No commas or quotes are required
@@ -1990,7 +2029,7 @@ C and C++ sources. If the extra flags are exactly the same for both properties,
 and this is likely the case, one could refer to the other. For example:
 
 ```properties
-compiler.cpp.extra_flags=-DQNETHERNET_ENABLE_RAW_FRAME_SUPPORT=1 -DLWIP_DNS=0
+compiler.cpp.extra_flags=-DQNETHERNET_ENABLE_RAW_FRAME_SUPPORT=0 -DLWIP_DNS=0
 compiler.c.extra_flags={compiler.cpp.extra_flags}
 ```
 
@@ -2021,7 +2060,7 @@ Simply add compiler flags to the `build_flags` build option in _platformio.ini_.
 For example:
 
 ```ini
-build_flags = -DQNETHERNET_ENABLE_RAW_FRAME_SUPPORT=1
+build_flags = -DQNETHERNET_ENABLE_RAW_FRAME_SUPPORT=0
 ```
 
 ### Changing lwIP configuration macros in `lwipopts.h`
@@ -2112,7 +2151,7 @@ The `constexpr double wraparoundPeriod()` function returns the wraparound period
 in seconds.
 
 Both of these clocks satisfy the
-[Clock](https://www.cppreference.com/cpp/named_req/Clock)
+[Clock](https://www.cppreference.com/w/cpp/named_req/Clock.html)
 C++ named requirement
 
 #### `steady_clock_ms`
@@ -2355,3 +2394,4 @@ Other conventions are adopted from Bjarne Stroustrup's and Herb Sutter's
 ---
 
 Copyright (c) 2021-2026 Shawn Silverman
+
