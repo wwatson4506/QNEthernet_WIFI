@@ -5,20 +5,12 @@
 
 #include <stddef.h>
 #include "WiFiCardInfo.h"
+#include "misc_defs.h"
 #include "ioctl_T4.h"
-//#include "ip.h"
+#include "event.h"
 
-#define FIFO_SDIO 0
-#define DMA_SDIO 1
-#define USE_SDIO2 2
 // Set true if using with QNethernet library.
 #define USE_CYW4343W true
-
-#define MACLEN      6           /* Ethernet (MAC) address length */
-// Check if MAC address is non-zero
-#define IS_MAC_NONZERO(a) (a[0] || a[1] || a[2] || a[3] || a[4] || a[5])
-// Copy a MAC address
-#define MAC_CPY(a, b) memcpy(a, b, MACLEN)
 
 /**
  *  maximum initialization clock rate.
@@ -107,6 +99,7 @@ class W4343WCard { //: public Event , public T4_SDIO {
   int ioctl_cmd(int cmd, const char *name, int wait_msec, int wr, void *data, int dlen, bool logOutput = false);
   int ioctl_cmd_poll_device(int wait_msec, int wr, void *data, int dlen, bool logOutput = false);
   int ioctl_wait(int usec);
+  int set_iovar_mpc(uint8_t val);
 
   void setBackplaneWindow(uint32_t addr);
   uint32_t setBackplaneWindow_retOffset(uint32_t addr);
@@ -116,6 +109,8 @@ class W4343WCard { //: public Event , public T4_SDIO {
   void printResponse(bool return_value);
   void printMACAddress(uint8_t * data);
   void printSSID(uint8_t * data);
+void ioctl_err_display(int retval);
+  IMXRT_USDHC_t *m_psdhc;
 
   //-----------------------------------------------------------------------------------------------------------------
 
@@ -168,7 +163,6 @@ class W4343WCard { //: public Event , public T4_SDIO {
   bool uploadNVRAM(size_t nvRAMSize, uintptr_t source);
   bool uploadCLM();
 
-  int set_iovar_mpc(uint8_t val);
   bool isBusyDat();
   bool isBusyFifoRead();
   bool isBusyFifoWrite();
@@ -178,7 +172,6 @@ class W4343WCard { //: public Event , public T4_SDIO {
 
   /////////////////////////////////////////////////////
   // lets move global (static) variables into class instance.
-  IMXRT_USDHC_t *m_psdhc;
   pcheckfcn m_busyFcn = nullptr;
   bool m_initDone = false;
   bool m_version2;
@@ -194,6 +187,6 @@ class W4343WCard { //: public Event , public T4_SDIO {
 //  cid_t m_cid;
 //  csd_t m_csd;
 };
-
-extern W4343WCard wifiCard;
+//static W4343WCard wifiCard;
+extern W4343WCard WIFIcard;
 #endif  // CYW43_T4_SDIO_H

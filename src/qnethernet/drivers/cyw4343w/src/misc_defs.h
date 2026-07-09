@@ -7,16 +7,23 @@
 #ifndef MAX
 #define MAX(a,b) (((a)>(b))?(a):(b))
 #endif
-
-typedef unsigned char   BYTE;
-typedef unsigned short  WORD;
-typedef unsigned int    DWORD;
-
-// Set this define to true to show activity after network is joined.
-#define USE_ACTIVITY_DISPLAY false
-
+//---------------------------------------------------
 // Un-comment to enable multicast.
 //#define USE_MCAST 1
+
+// Init Debug Mode. Displays initialization processes.
+#define INIT_DEBUG_MODE false
+
+// Warnings
+#define DEBUG_WARNINGS false
+
+// More verbose
+//#define USE_DEBUG_MODE 1
+
+// Show hidden sites during scan.
+#define SHOW_HIDDEN true
+//---------------------------------------------------
+
 
 #define RXDATA_LEN      1600
 #define TXDATA_LEN      1600
@@ -76,10 +83,48 @@ typedef unsigned int    DWORD;
 #define DISP_TCP        0x80000 // TCP
 #define DISP_TCP_STATE  0x100000 // TCP state
 
-#define LED_PIN         10
+#define LED_PIN   10
+#define FIFO_SDIO 0
+#define DMA_SDIO  1
+#define USE_SDIO2 2
+#define MACLEN    6           /* Ethernet (MAC) address length */
+// Check if MAC address is non-zero
+#define IS_MAC_NONZERO(a) (a[0] || a[1] || a[2] || a[3] || a[4] || a[5])
+// Copy a MAC address
+#define MAC_CPY(a, b) memcpy(a, b, MACLEN)
 
+
+// Compare two MAC addresses
+#define MAC_CMP(a, b) (a[0]==b[0]&&a[1]==b[1]&&a[2]==b[2]&&a[3]==b[3]&&a[4]==b[4]&&a[5]==b[5])
+// Compare MAC address to broadcast
+#define MAC_IS_BCAST(a) ((a[0]&a[1]&a[2]&a[3]&a[4]&a[5])==0xff)
+// Set broadcast MAC address
+#define MAC_BCAST(a) {a[0]=a[1]=a[2]=a[3]=a[4]=a[5]=0xff;}
+// Check if MAC address is non-zero
+#define MAC_IS_NONZERO(a) (a[0] || a[1] || a[2] || a[3] || a[4] || a[5])
+// Copy a MAC address
+#define MAC_CPY(a, b) memcpy(a, b, MACLEN)
+
+// Initialiser for address variable
+#define IPADDR_VAL(a, b, c, d) {a, b, c, d}
+// Compare two IP addresses
+#define IP_CMP(a, b)    (a[0]==b[0] && a[1]==b[1] && a[2]==b[2] && a[3]==b[3])
+// Compare IP address to broadcast
+#define IP_IS_BCAST(a)  ((a[0] & a[1] & a[2] & a[3]) == 0xff)
+// Copy an IP address
+#define IP_CPY(a, b)    ip_cpy(a, b) // memcpy((a), (b), IPLEN) // NOT WORKING!!!!!
+// Set an IP address to zero
+#define IP_ZERO(a)      (a[0] = a[1] = a[2] = a[3] = 0)
+// Check if IP address is zero
+#define IP_IS_ZERO(a)   ((a[0] || a[1] || a[2] || a[3]) == 0)
+
+#define PCOL_ARP    0x0806      /* Protocol type: ARP */
+#define PCOL_IP     0x0800      /*                IP */
+
+#define PRINT_SCAN_TEMPLATE()                   printf("\n**********************************************************************************************\n" \
+                                                "* #          SSID                             RSSI   Channel       BSSID          Security   *\n" \
+                                                "**********************************************************************************************\n");
 //#define USE_DEBUG_COLORS
-
 #if defined (USE_DEBUG_COLORS)
 //Foreground: reset = 0, black = 30, red = 31, green = 32, yellow = 33, blue = 34, magenta = 35, cyan = 36, and white = 37
 //Background: reset = 0, black = 40, red = 41, green = 42, yellow = 43, blue = 44, magenta = 45, cyan = 46, and white = 47

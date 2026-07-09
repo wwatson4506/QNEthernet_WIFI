@@ -1,11 +1,7 @@
 #ifndef IOCTL_T4H
 #define IOCTL_T4H
 
-
 #include <Arduino.h>
-
-//#include "../whd/whd_types.h"
-//#include "../whd/whd_events.h"
 #include "whd_wlioctl.h"
 
 // IOCTL commands

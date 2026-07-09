@@ -30,43 +30,26 @@
 #include "ioctl_T4.h"
 #include "misc_defs.h"
 #include "QNEthernet.h"
-//#include <IPAddress.h>
+#include <lwip/etharp.h>
 
+#define MAX_HANDLERS    20
+#define MAX_EVENT_STATUS 16
+#define GW_MS_DELAY 50
+#define NUM_ARP_ENTRIES 10
+
+#define MAX_SCAN_ENTRIES 80 // Initial entry count (less if not showing hidden sites).
+
+// Event handling
 #define EVT(e)      {e, #e}
-
 #define NO_EVTS     {EVT(-1)}
-#define ESCAN_EVTS  {EVT(WLC_E_ESCAN_RESULT), EVT(-1)}
+//#define ESCAN_EVTS  {EVT(WLC_E_ESCAN_RESULT), EVT(-1)} // Original
+const EVT_STR escan_evts[] = {EVT(WLC_E_ESCAN_RESULT), // PICOWI version
+                              EVT(WLC_E_SET_SSID), 
+                              EVT(-1)};
 #define JOIN_EVTS   {EVT(WLC_E_SET_SSID), EVT(WLC_E_LINK), EVT(WLC_E_AUTH), \
         EVT(WLC_E_DEAUTH_IND), EVT(WLC_E_DISASSOC_IND), EVT(WLC_E_PSK_SUP), EVT(-1)}
 
-
-// Compare two MAC addresses
-#define MAC_CMP(a, b) (a[0]==b[0]&&a[1]==b[1]&&a[2]==b[2]&&a[3]==b[3]&&a[4]==b[4]&&a[5]==b[5])
-// Compare MAC address to broadcast
-#define MAC_IS_BCAST(a) ((a[0]&a[1]&a[2]&a[3]&a[4]&a[5])==0xff)
-// Set broadcast MAC address
-#define MAC_BCAST(a) {a[0]=a[1]=a[2]=a[3]=a[4]=a[5]=0xff;}
-// Check if MAC address is non-zero
-#define MAC_IS_NONZERO(a) (a[0] || a[1] || a[2] || a[3] || a[4] || a[5])
-// Copy a MAC address
-#define MAC_CPY(a, b) memcpy(a, b, MACLEN)
-
-// Initialiser for address variable
-#define IPADDR_VAL(a, b, c, d) {a, b, c, d}
-// Compare two IP addresses
-#define IP_CMP(a, b)    (a[0]==b[0] && a[1]==b[1] && a[2]==b[2] && a[3]==b[3])
-// Compare IP address to broadcast
-#define IP_IS_BCAST(a)  ((a[0] & a[1] & a[2] & a[3]) == 0xff)
-// Copy an IP address
-#define IP_CPY(a, b)    ip_cpy(a, b) // memcpy((a), (b), IPLEN) // NOT WORKING!!!!!
-// Set an IP address to zero
-#define IP_ZERO(a)      (a[0] = a[1] = a[2] = a[3] = 0)
-// Check if IP address is zero
-#define IP_IS_ZERO(a)   ((a[0] || a[1] || a[2] || a[3]) == 0)
-
-#define PCOL_ARP    0x0806      /* Protocol type: ARP */
-#define PCOL_IP     0x0800      /*                IP */
-
+#pragma pack(1)
 // Ethernet header (sdpcm_ethernet_header_t)
 typedef struct {
     uint8_t dest_addr[6],
@@ -114,21 +97,21 @@ typedef struct {
 /* MAC address */
 #define MACLEN      6           /* Ethernet (MAC) address length */
 //#define MAXFRAME    1500        /* Maximum frame size (excl CRC) */
-typedef BYTE MACADDR[MACLEN];
+typedef uint8_t MACADDR[MACLEN];
 
 /* Ethernet (DIX) header */
 typedef struct {
     MACADDR dest;               /* Destination MAC address */
     MACADDR srce;               /* Source MAC address */
-    WORD    ptype;              /* Protocol type or length */
+    uint16_t    ptype;              /* Protocol type or length */
 } ETHERHDR;
 
 /* ***** ICMP (Internet Control Message Protocol) header ***** */
 typedef struct
 {
-    BYTE  type,         /* Message type */
+    uint8_t  type,         /* Message type */
           code;         /* Message code */
-    WORD  check,        /* Checksum */
+    uint16_t  check,        /* Checksum */
           ident,        /* Identifier */
           seq;          /* Sequence number */
 } ICMPHDR;
@@ -148,14 +131,14 @@ typedef uint8_t            IPADDR[IPLEN];
 /* ***** IP (Internet Protocol) header ***** */
 typedef struct
 {
-    BYTE   vhl,         /* Version and header len */
+    uint8_t   vhl,         /* Version and header len */
            service;     /* Quality of IP service */
-    WORD   len,         /* Total len of IP datagram */
+    uint16_t   len,         /* Total len of IP datagram */
            ident,       /* Identification value */
            frags;       /* Flags & fragment offset */
-    BYTE   ttl,         /* Time to live */
+    uint8_t   ttl,         /* Time to live */
            pcol;        /* Protocol used in data area */
-    WORD   check;       /* Header checksum */
+    uint16_t   check;       /* Header checksum */
     IPADDR sip,         /* IP source addr */
            dip;         /* IP dest addr */
 } IPHDR;
@@ -167,11 +150,11 @@ typedef struct
 /* ***** ARP (Address Resolution Protocol) packet ***** */
 typedef struct
 {
-    WORD hrd,           /* Hardware type */
+    uint16_t hrd,           /* Hardware type */
          pro;           /* Protocol type */
-    BYTE  hln,          /* Len of h/ware addr (6) */
+    uint8_t  hln,          /* Len of h/ware addr (6) */
           pln;          /* Len of IP addr (4) */
-    WORD op;            /* ARP opcode */
+    uint16_t op;            /* ARP opcode */
     MACADDR  smac;      /* Source MAC (Ethernet) addr */
     IPADDR   sip;       /* Source IP addr */
     MACADDR  dmac;      /* Destination Enet addr */
@@ -200,7 +183,7 @@ typedef struct {
 } SCAN_RESULT_HDR;
 
 // BSS info from EScan (part of wl_bss_info_t)
-typedef struct
+typedef struct BSS_INFO_STRUCT_T
 {
     uint32_t version;              // version field
     uint32_t length;               // byte length of data in this record, starting at version and including IEs
@@ -209,11 +192,16 @@ typedef struct
     uint16_t capability;           // Capability information
     uint8_t ssid_len;              // SSID length
     uint8_t ssid[32];              // Array to store SSID
-    uint32_t nrates;               // Count of rates in this set
-    uint8_t rates[16];             // rates in 500kbps units, higher bit set if basic
+    struct                         // Added 06-25-26 WW
+    {                              // Added 06-25-26 WW
+      uint32_t nrates;             // Count of rates in this set
+      uint8_t rates[16];           // rates in 500kbps units, higher bit set if basic
+    } rateset;                     // supported rates Added 06-25-26 WW
+uint8_t dummy;                     // Added 06-25-26 WW
     uint16_t channel;              // Channel specification for basic service set
     uint16_t atim_window;          // Announcement traffic indication message window size. Units are Kusec
     uint8_t dtim_period;           // Delivery traffic indication message period
+uint8_t dummy1;                    // Added 06-25-26 WW
     int16_t rssi;                  // receive signal strength (in dBm)
     int8_t phy_noise;              // noise (in dBm)
     // The following fields assume the 'version' field is 109 (0x6D)
@@ -230,14 +218,90 @@ typedef struct
     // Variable-length Information Elements follow, see cyw43_ll_wifi_parse_scan_result
 } BSS_INFO;
 
+typedef struct _cyw4343w_scan_result_internal_t {
+    uint32_t version;
+    uint32_t length;
+    uint8_t bssid[6];
+    uint16_t beacon_period;
+    uint16_t capability;
+    uint8_t ssid_len;
+    uint8_t ssid[32];
+    uint32_t rateset_count;
+    uint8_t rateset_rates[16];
+    uint16_t chanspec;
+    uint16_t atim_window;
+    uint8_t dtim_period;
+    int16_t rssi;
+    int8_t phy_noise;
+    uint8_t n_cap;
+    uint32_t nbss_cap;
+    uint8_t ctl_ch;
+    uint32_t reserved32[1];
+    uint8_t flags;
+    uint8_t reserved[3];
+    uint8_t basic_mcs[16];
+    uint16_t ie_offset;
+    uint32_t ie_length;
+    int16_t SNR;
+} cyw43_scan_result_internal_t;
+
+// For determining security type from a scan
+#define DOT11_CAP_PRIVACY             (0x0010)
+#define DOT11_IE_ID_RSN               (48)
+#define DOT11_IE_ID_VENDOR_SPECIFIC   (221)
+#define WPA_OUI_TYPE1                 "\x00\x50\xF2\x01"
+// Custom security bitfield returns
+#define SEC_OPEN   0        // 0
+#define SEC_WEP    (1 << 0) // 1
+#define SEC_WPA    (1 << 1) // 2
+#define SEC_WPA2   (1 << 2) // 4
+#define SEC_WPA3   (1 << 3) // 8
+
 // Escan result event (excluding 12-byte IOCTL header and BDC header)
 typedef struct {
     ETHER_HDR ether;
     BCMETH_HDR bcmeth;
     EVENT_HDR eventh;
     SCAN_RESULT_HDR scanh;
-    BSS_INFO info;
+//    BSS_INFO info;
+   wl_bss_info_t info;
+//    cyw43_scan_result_internal_t info;
 } ESCAN_RESULT;
+
+/**
+ * Structure to store scan result parameters for each AP
+ * Modified to add security_mask term.
+ */
+typedef struct simple_scan_result {
+    uint8_t ssid[32];        /**< Service Set Identification (i.e. Name of Access Point)                    */
+    uint8_t bssid[6];        /**< Basic Service Set Identification (i.e. MAC address of Access Point)       */
+    int16_t signal_strength; /**< Receive Signal Strength Indication in dBm. <-90=Very poor, >-30=Excellent */
+    uint8_t security[15];    /**< Security type (Simple mask version) Leave room for longer descryption     */
+    uint8_t channel;         /**< Radio channel that the AP beacon was received on                          */
+	uint8_t security_mask;   /**< Security Type mask. Used in RSN for decoding security type                */
+} simple_scan_result_t;
+
+// Scan result Array. A smaller scan struct for usage processing and display of results.
+static simple_scan_result_t  __attribute__((unused)) scan_results[MAX_SCAN_ENTRIES];
+
+typedef struct {
+    uint32_t version;
+    uint16_t action,
+             sync_id;
+    uint32_t ssidlen;
+    uint8_t  ssid[SSID_MAXLEN],
+             bssid[6],
+             bss_type,
+             scan_type;
+    int32_t  nprobes,  // Needs to accommodate negative numbers. Was uint32_t
+             active_time,
+             passive_time,
+             home_time;
+    uint16_t nchans,
+             nssids;
+    uint8_t  chans[14][2],
+             ssids[1][SSID_MAXLEN];
+} SCAN_PARAMS;
 
 typedef struct
 {
@@ -246,58 +310,89 @@ typedef struct
     BDC_HDR_T4 bdc;
     uint8_t data[TXDATA_LEN];
 } TX_MSG;
+#pragma pack()
 
 typedef int (*event_handler_t)(EVENT_INFO *eip);
-
-  int ip_check_frame(BYTE *data, int dlen);
-  int arp_event_handler(EVENT_INFO *eip);
-//  int ip_tx_eth(BYTE *buff, int len);
-  int ip_tx_arp(MACADDR mac, IPADDR addr, WORD op);
-  int ip_rx_arp(BYTE *data, int dlen);
-  int ip_make_arp(BYTE *buff, MACADDR mac, IPADDR addr, WORD op);
-  int icmp_event_handler(EVENT_INFO *eip);
-  WORD add_csum(WORD sum, void *dp, int count);
-  int ip_add_data(BYTE *buff, void *data, int len);
-  int ip_add_icmp(BYTE *buff, BYTE type, BYTE code, void *data, WORD dlen);
-  int ip_add_eth(BYTE *buff, MACADDR dmac, MACADDR smac, WORD pcol);
-  int ip_add_hdr(BYTE *buff, IPADDR dip, BYTE pcol, WORD dlen);
-  int ip_rx_icmp(BYTE *data, int dlen);
-  int ip_make_icmp(BYTE *buff, MACADDR mac, IPADDR dip, BYTE type, BYTE code, BYTE *data, int dlen);
-  void ip_save_arp(MACADDR mac, IPADDR addr);
-  bool ip_find_arp(IPADDR addr, MACADDR mac);
-  void ip_print_eth(BYTE *buff);
-  void print_ip_addr(IPADDR a);
-  void print_ip_addrs(IPHDR *ip);
-  void print_mac_addr(MACADDR mac);
-  void ip_print_icmp(IPHDR *ip);
-  void ip_print_arp(ARPKT *arp);
-  void ip_cpy(BYTE *dest, BYTE *src);
-//  bool ip_find_arp(IPADDR addr, MACADDR mac);
   
 class Event;
 class Event {
   public:
+  
   bool init();
+  int get_gw_mac(struct netif *netif);
   int ipInit(IPADDR addr);
   bool add_event_handler(event_handler_t);
-  bool add_server_event_handler(event_handler_t fn, WORD port);
+  bool add_server_event_handler(event_handler_t fn, uint16_t port);
   int event_handle(EVENT_INFO *eip);
   int pollEvents(void);
   int ioctl_enable_evts(EVT_STR *evtp);  
   const char *ioctl_evt_status_str(int status);
   const char *ioctl_evt_str(int event);
-  int ip_tx_eth(BYTE *buff, int len);
-  int ip_tx_icmp(MACADDR mac, IPADDR dip, BYTE type, BYTE code, BYTE *data, int dlen);
+  int ip_rx_arp(uint8_t *data, int dlen);
+  int ip_tx_eth(uint8_t *buff, int len);
+  int ip_tx_icmp(MACADDR mac, IPADDR dip, uint8_t type, uint8_t code, void *pdata);
+  int ip_rx_icmp(uint8_t *data, int dlen);
+  static int scan_event_handler(EVENT_INFO *eip);
+  static int icmp_event_handler(EVENT_INFO *eip);
+  static int arp_event_handler(EVENT_INFO *eip);
+  static uint32_t parseScanResult(ESCAN_RESULT *evsrp);
+  simple_scan_result_t *getScanResults(void);
+  bool ip_find_arp(IPADDR addr, MACADDR mac);
+  int ip_tx_arp(MACADDR mac, IPADDR addr, uint16_t op);
+  int ip_make_arp(uint8_t *buff, MACADDR mac, IPADDR addr,uint16_t op);
+  uint16_t add_csum(uint16_t sum, void *dp, int count);
+  int ip_add_data(uint8_t *buff, const void *data, int len);
+  int ip_add_icmp(uint8_t *buff, uint8_t type, uint8_t code, void *pdata);
+  int ip_add_hdr(uint8_t *buff, IPADDR dip, uint8_t pcol, uint16_t dlen);
+  int ip_add_eth(uint8_t *buff, MACADDR dmac, MACADDR smac, uint16_t pcol);
+  int ip_make_icmp(uint8_t *buff, MACADDR mac, IPADDR dip, uint8_t type, uint8_t code, void *pdata);
 
   uint32_t ioctl_get_event(sdpcm_header_t *hp, uint8_t *data, int maxlen);
   char *sdpcm_chan_str(int chan);
   char *event_str(int event);
   int event_net_tx(void *data, int len);
-  WORD htons(WORD w);
+  uint16_t htons(uint16_t w);
+
   protected:
   
   private:
-	
+  void ip_save_arp(MACADDR mac, IPADDR addr);
+  int ip_check_frame(uint8_t *data, int dlen);
+  void ip_cpy(uint8_t *dest, uint8_t *src);
+  void ip_print_eth(uint8_t *buff);
+  void print_ip_addr(IPADDR a);
+  void print_ip_addrs(IPHDR *ip);
+  char *mac_addr_str(char *s, uint8_t *mac);
+  void print_mac_addr(MACADDR mac);
+  void ip_print_icmp(IPHDR *ip);
+  void ip_print_arp(ARPKT *arp);
+  uint8_t rxdata[RXDATA_LEN];
+  uint8_t txbuff[TXDATA_LEN];
+  uint8_t sd_tx_seq;
+
+  uint8_t eventbuf[1600];
+  uint8_t event_mask[EVENT_MAX / 8];
+  ETH_EVENT_FRAME *eep = (ETH_EVENT_FRAME *)eventbuf;
+  EVT_STR *currentE_evts;
+  uint16_t event_ports[MAX_HANDLERS];
+
+  const char * event_status[MAX_EVENT_STATUS] = {
+    "SUCCESS","FAIL","TIMEOUT","NO_NETWORK","ABORT","NO_ACK",
+    "UNSOLICITED","ATTEMPT","PARTIAL","NEWSCAN","NEWASSOC",
+    "11HQUIET","SUPPRESS","NOCHANS","CCXFASTRM","CS_ABORT" };
+
+  ARP_ENTRY arp_entries[NUM_ARP_ENTRIES];
+  int arp_idx;
+
+  MACADDR bcast_mac={0xff,0xff,0xff,0xff,0xff,0xff};
+
+  TX_MSG tx_msg = {.sdpcm = {
+	               .chan = SDPCM_CHAN_DATA,
+	               .hdrlen = sizeof(SDPCM_HDR)+2},
+                   .bdc = {
+				   .flags=0x20}
+				  };
+
 };
 extern Event event;
 #endif

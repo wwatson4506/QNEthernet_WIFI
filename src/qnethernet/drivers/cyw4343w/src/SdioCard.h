@@ -26,7 +26,7 @@
 #define SdioCard_h
 
 
-//#include "imxrt.h"
+#include "imxrt.h"
 #include "WiFiCardInfo.h"
 
 // From Paul's SD.h driver.
