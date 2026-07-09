@@ -61,7 +61,6 @@
 #include "lwip/inet_chksum.h"
 
 #include <string.h>
-void rawDump(unsigned char *memory, unsigned int len);
 
 /** The list of RAW PCBs */
 static struct raw_pcb *raw_pcbs;
@@ -401,12 +400,6 @@ raw_sendto(struct raw_pcb *pcb, struct pbuf *p, const ip_addr_t *ipaddr)
     /* use RAW PCB local IP address as source address */
     src_ip = &pcb->local_ip;
   }
-//printf("***************** rawDump(pcb_,sizeof(pcb_)) ************************\n");
-//rawDump((uint8_t *)pcb,sizeof(pcb));
-//printf("***********************************************************\n");
-//printf("***************** rawDump(p,p->tot_len) ************************\n");
-//rawDump((uint8_t *)p,p->tot_len);
-//printf("*******************************************************\n");
 
   return raw_sendto_if_src(pcb, p, ipaddr, netif, src_ip);
 }
@@ -529,16 +522,11 @@ raw_sendto_if_src(struct raw_pcb *pcb, struct pbuf *p, const ip_addr_t *dst_ip,
 #else /* LWIP_MULTICAST_TX_OPTIONS */
   ttl = pcb->ttl;
 #endif /* LWIP_MULTICAST_TX_OPTIONS */
-//printf("***************** rawDump(q->payload,q->tot_len) ************************\n");
-//rawDump((uint8_t *)q->payload,q->tot_len);
-//printf("***********************************************************\n");
-//printf("***************** rawDump(p-payload,p->tot_len) ************************\n");
-//rawDump((uint8_t *)p->payload,p->tot_len);
-//printf("*******************************************************\n");
 
   NETIF_SET_HINTS(netif, &pcb->netif_hints);
   err = ip_output_if(q, src_ip, dst_ip, ttl, pcb->tos, pcb->protocol, netif);
   NETIF_RESET_HINTS(netif);
+
   /* did we chain a header earlier? */
   if (q != p) {
     /* free the header */
@@ -680,38 +668,6 @@ void raw_netif_ip_addr_changed(const ip_addr_t *old_addr, const ip_addr_t *new_a
       }
     }
   }
-}
-// Simple hex dump routine.
-void rawDump(unsigned char *memory, unsigned int len)
-{
-   	unsigned int	i=0, j=0;
-	unsigned char	c=0;
-
-//	printf("                     (FLASH) MEMORY CONTENTS");
-	printf("\n\rADDR          00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F");
-	printf("\n\r-------------------------------------------------------------\n\r");
-
-
-	for(i = 0; i <= (len-1); i+=16) {
-//		phex16((i + memory));
-		printf("%8.8x",(unsigned int)(i + memory));
-		printf("      ");
-		for(j = 0; j < 16; j++) {
-			c = memory[i+j];
-			printf("%2.2x",c);
-			printf(" ");
-		}
-		printf("  ");
-		for(j = 0; j < 16; j++) {
-			c = memory[i+j];
-			if(c > 31 && c < 127)
-				printf("%c",c);
-			else
-				printf(".");
-		}
-//		_delay_ms(10);
-		printf("\n");
-	}
 }
 
 #endif /* LWIP_RAW */
