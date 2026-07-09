@@ -120,6 +120,12 @@ void EthernetClass::netifEventFunc(
   }
 }
 
+extern "C" void qnethernet_hal_init_entropy();
+
+FLASHMEM EthernetClass::EthernetClass() {
+  qnethernet_hal_init_entropy();
+}
+
 FLASHMEM EthernetClass::~EthernetClass() noexcept {
   end();
 }
@@ -127,7 +133,7 @@ FLASHMEM EthernetClass::~EthernetClass() noexcept {
 const uint8_t* EthernetClass::macAddress() {
   // First ensure there's a value
   if (!mac_.has_value) {
-    enet_get_system_mac(mac_.value);
+    enet::get_system_mac(mac_.value);
     mac_.has_value = true;
   }
   return mac_.value;
@@ -143,7 +149,7 @@ void EthernetClass::setMACAddress(const uint8_t mac[kMACAddrSize]) {
   uint8_t m[kMACAddrSize];
   if (mac == nullptr) {
     // Use the system MAC address
-    enet_get_system_mac(m);
+    enet::get_system_mac(m);
     mac = m;
     if (!mac_.has_value) {  // Take the opportunity to fill this in if we need
       (void)std::copy_n(&m[0], kMACAddrSize, &mac_.value[0]);
@@ -179,7 +185,7 @@ void EthernetClass::setMACAddress(const uint8_t mac[kMACAddrSize]) {
 }
 
 void EthernetClass::loop() {
-  enet_proc_input();
+  enet::proc_input();
 
 #if LWIP_NETIF_LOOPBACK || LWIP_HAVE_LOOPIF
   // Poll the netif to allow for loopback
@@ -189,7 +195,7 @@ void EthernetClass::loop() {
 #endif  // LWIP_NETIF_LOOPBACK || LWIP_HAVE_LOOPIF
 
   if ((sys_now() - lastPollTime_) >= kPollInterval) {
-    enet_poll();
+    enet::poll();
     lastPollTime_ = sys_now();
   }
 }
@@ -280,9 +286,10 @@ bool EthernetClass::maybeStartDHCP() {
 }
 
 bool EthernetClass::start() {
-  driver_set_chip_select_pin(chipSelectPin_);
+  driver::set_chip_select_pin(chipSelectPin_);
 
-  if (!driver_has_hardware()) {
+  if (!driver::has_hardware()) {
+    errno = ENODEV;
     return false;
   }
 
@@ -292,7 +299,7 @@ bool EthernetClass::start() {
   }
 
   // Initialize Ethernet, set up the callback, and set the netif to UP
-  netif_ = enet_netif();
+  netif_ = enet::netif();
 
   ifName_[0] = netif_->name[0];
   ifName_[1] = netif_->name[1];
@@ -308,16 +315,15 @@ bool EthernetClass::start() {
   LWIP_ASSERT("Expected complete interface name fill",
               std::snprintf(&ifName_[2], sizeof(ifName_) - 2, "%u",
                             netif_->num) == numSize);
-
-  if (!enet_init(macAddress(), &netifEventFunc, &driverCapabilities_)) {
+  if (!enet::init(macAddress(), &netifEventFunc, &driverCapabilities_)) {
     netif_ = nullptr;
     ifName_[0] = '\0';
     return false;
   }
 
-  if (!enet_get_mac(mac_.value)) {
+  if (!enet::get_mac(mac_.value)) {
     // This shouldn't happen
-    enet_deinit();
+    enet::deinit();
     netif_ = nullptr;
     ifName_[0] = '\0';
     errno = EFAULT;
@@ -482,7 +488,7 @@ bool EthernetClass::begin(const uint8_t mac[kMACAddrSize], const IPAddress& ip,
   uint8_t m1[kMACAddrSize];
   uint8_t m2[kMACAddrSize];
   if (mac == nullptr) {
-    enet_get_system_mac(m1);
+    enet::get_system_mac(m1);
     mac = m1;
     if (!mac_.has_value) {  // Take the opportunity to fill this in if we need
       (void)std::copy_n(&m1[0], kMACAddrSize, &mac_.value[0]);
@@ -537,13 +543,13 @@ void EthernetClass::end() {
   netif_set_link_down(netif_);
   netif_set_down(netif_);
 
-  enet_deinit();
+  enet::deinit();
   netif_ = nullptr;
   ifName_[0] = '\0';
 }
 
 EthernetLinkStatus EthernetClass::linkStatus() const {
-  if (driver_is_unknown()) {
+  if (driver::is_unknown()) {
     return EthernetLinkStatus::Unknown;
   }
   return linkState() ? EthernetLinkStatus::LinkON : EthernetLinkStatus::LinkOFF;
@@ -563,7 +569,7 @@ void EthernetClass::setLinkState(const bool flag) const {
   }
 
   // Tell the driver about this possibly sticky setting
-  driver_notify_manual_link_state(flag);
+  driver::notify_manual_link_state(flag);
 
   if (flag) {
     netif_set_link_up(netif_);
@@ -574,7 +580,7 @@ void EthernetClass::setLinkState(const bool flag) const {
 
 LinkInfo EthernetClass::linkInfo() const {
   LinkInfo li;
-  driver_get_link_info(&li);
+  driver::get_link_info(&li);
   return li;
 }
 
@@ -708,7 +714,7 @@ void EthernetClass::setDNSServerIP(const size_t index,
 }
 
 EthernetHardwareStatus EthernetClass::hardwareStatus() const {
-  if (driver_has_hardware()) {
+  if (driver::has_hardware()) {
 #if defined(QNETHERNET_INTERNAL_DRIVER_W5500)
     return EthernetW5500;
 #elif defined(QNETHERNET_INTERNAL_DRIVER_TEENSY41)
@@ -774,7 +780,7 @@ bool EthernetClass::setMACAddressAllowed(const uint8_t mac[kMACAddrSize],
     return false;
   }
 #if !QNETHERNET_ENABLE_PROMISCUOUS_MODE
-  return driver_set_incoming_mac_address_allowed(mac, flag);
+  return driver::set_incoming_mac_address_allowed(mac, flag);
 #else
   return flag;  // Can't disallow MAC addresses
 #endif  // !QNETHERNET_ENABLE_PROMISCUOUS_MODE
@@ -788,8 +794,7 @@ void EthernetClass::setHostname(const char* const hostname) {
   if (hostname == nullptr) {
     hostname_[0] = '\0';
   } else {
-    (void)std::strncpy(hostname_, hostname, sizeof(hostname_) - 1);
-    hostname_[sizeof(hostname_) - 1] = '\0';
+    (void)std::snprintf(hostname_, sizeof(hostname_), "%s", hostname);
   }
   if (netif_ != nullptr) {
     if (std::strlen(hostname_) == 0) {

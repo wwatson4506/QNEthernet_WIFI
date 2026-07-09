@@ -13,14 +13,18 @@
 #if QNETHERNET_CUSTOM_WRITE
 #include <cerrno>
 #endif  // QNETHERNET_CUSTOM_WRITE
+#include <climits>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <random>
+#include <type_traits>
 
 #include <Arduino.h>
 #include <Print.h>
+#ifdef TEENSYDUINO
 #include <util/atomic.h>
+#endif  // TEENSYDUINO
 
 #include "qnethernet/compat/c++11_compat.h"
 
@@ -38,6 +42,7 @@
 #endif  // defined(TEENSYDUINO)
 
 #include "lwip/arch.h"
+#include "lwip/debug.h"
 #include "lwip/prot/ethernet.h"
 
 // --------------------------------------------------------------------------
@@ -162,8 +167,6 @@ Print* volatile stderrPrint = nullptr;
 
 #endif  // QNETHERNET_CUSTOM_WRITE
 
-extern "C" {
-
 // Gets the Print* for the given file descriptor.
 ATTRIBUTE_NODISCARD
 static inline Print* getPrint(const int file) {
@@ -185,6 +188,8 @@ static inline Print* getPrint(const int file) {
       return reinterpret_cast<Print*>(file);
   }
 }
+
+extern "C" {
 
 #if QNETHERNET_CUSTOM_WRITE
 
@@ -253,7 +258,7 @@ void qnethernet_hal_check_core_locking(const char* const file, const int line,
     !QNETHERNET_USE_ENTROPY_LIB
 
 #define WHICH_ENTROPY_TYPE 1  // Teensy 4
-#include "qnethernet/security/entropy.h"
+#include "qnethernet/entropy/entropy.h"
 
 #elif defined(__has_include)
 // https://gcc.gnu.org/onlinedocs/cpp/_005f_005fhas_005finclude.html
@@ -270,6 +275,15 @@ extern "C" {
 // Initializes randomness.
 ATTRIBUTE_WEAK void qnethernet_hal_init_entropy();
 
+// Uninitializes randomness.
+ATTRIBUTE_WEAK void qnethernet_hal_deinit_entropy();
+
+// Estimates the number of bits of entropy, given the size of a type.
+ATTRIBUTE_WEAK double qnethernet_hal_estimate_entropy(size_t typeSize);
+
+// Available entropy without having to generate more.
+ATTRIBUTE_WEAK size_t qnethernet_hal_entropy_available();
+
 // Gets 32-bits of entropy for LWIP_RAND() and random_device.
 ATTRIBUTE_WEAK uint32_t qnethernet_hal_entropy();
 
@@ -280,27 +294,34 @@ ATTRIBUTE_WEAK size_t qnethernet_hal_fill_entropy(void* buf, size_t size);
 #if WHICH_ENTROPY_TYPE == 1
 
 void qnethernet_hal_init_entropy() {
-  if (!::trng_is_started()) {
-    ::trng_init();
+  if (!::qindesign::entropy::trng_is_started()) {
+    ::qindesign::entropy::trng_init();
   }
 }
 
 void qnethernet_hal_deinit_entropy() {
-  if (::trng_is_started()) {
-    ::trng_deinit();
+  if (::qindesign::entropy::trng_is_started()) {
+    ::qindesign::entropy::trng_deinit();
   }
 }
 
-double qnethernet_hal_estimate_entropy() {
-  return 32.0;
+double qnethernet_hal_estimate_entropy(const size_t typeSize) {
+  return typeSize * CHAR_BIT;
+}
+
+size_t qnethernet_hal_entropy_available() {
+  return ::qindesign::entropy::trng_available();
 }
 
 uint32_t qnethernet_hal_entropy() {
-  return ::entropy_random();
+  uint32_t r;
+  LWIP_ASSERT("entropy generation error",
+              ::qindesign::entropy::entropy_random(&r));
+  return r;
 }
 
 size_t qnethernet_hal_fill_entropy(void* const buf, const size_t size) {
-  return ::trng_data(buf, size);
+  return ::qindesign::entropy::trng_data(buf, size);
 }
 
 #elif WHICH_ENTROPY_TYPE == 2
@@ -323,8 +344,12 @@ void qnethernet_hal_init_entropy() {
 void qnethernet_hal_deinit_entropy() {
 }
 
-double qnethernet_hal_estimate_entropy() {
-  return 32.0;
+double qnethernet_hal_estimate_entropy(const size_t typeSize) {
+  return typeSize * CHAR_BIT;
+}
+
+size_t qnethernet_hal_entropy_available() {
+  return Entropy.available();
 }
 
 uint32_t qnethernet_hal_entropy() {
@@ -347,8 +372,16 @@ void qnethernet_hal_init_entropy() {
 void qnethernet_hal_deinit_entropy() {
 }
 
-double qnethernet_hal_estimate_entropy() {
+double qnethernet_hal_estimate_entropy(const size_t typeSize) {
+  (void)typeSize;
   return 0.0;
+}
+
+size_t qnethernet_hal_entropy_available() {
+  using T = std::remove_reference<decltype(urbg_instance())>::type::result_type;
+  return (sizeof(T) >= sizeof(size_t))
+             ? std::numeric_limits<size_t>::max()
+             : static_cast<size_t>(std::numeric_limits<T>::max());
 }
 
 uint32_t qnethernet_hal_entropy() {
@@ -424,13 +457,13 @@ void qnethernet_hal_restore_interrupts(uint32_t state) {
 //  MAC Address
 // --------------------------------------------------------------------------
 
-extern "C" {
-
 #if !defined(TEENSYDUINO)
-static const uint8_t kDefaultMACAddress[ETH_HWADDR_LEN] = {
+static const uint8_t kDefaultMACAddress[ETH_HWADDR_LEN]{
     QNETHERNET_DEFAULT_MAC_ADDRESS,
 };
 #endif  // !defined(TEENSYDUINO)
+
+extern "C" {
 
 // Gets the system MAC address. This will either be some platform-specific value
 // or a predefined value.

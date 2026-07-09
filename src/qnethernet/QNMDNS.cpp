@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cerrno>
+#include <cstdio>
 #include <cstring>
 
 #include "lwip/apps/mdns_priv.h"  // For struct mdns_service
@@ -79,8 +80,7 @@ static bool s_netifAdded = false;
 FLASHMEM MDNSClass::~MDNSClass() noexcept {
   int lastErrno = errno;
   end();
-  errno = lastErrno;  // Because end() may have set it via
-                      // ConnectionManager::stopListening()
+  errno = lastErrno;  // Because end() may have set it
 }
 
 bool MDNSClass::begin(const char* const hostname) {
@@ -122,8 +122,7 @@ bool MDNSClass::begin(const char* const hostname) {
     netif_ = netif_default;
   }
 
-  (void)std::strncpy(hostname_, hostname, sizeof(hostname_) - 1);
-  hostname_[sizeof(hostname_) - 1] = '\0';
+  (void)std::snprintf(hostname_, sizeof(hostname_), "%s", hostname);
   return true;
 }
 
@@ -232,6 +231,7 @@ bool MDNSClass::removeService(const char* const name, const char* const type,
                               const char* protocol, const uint16_t port) {
   if (!s_netifAdded) {
     // Return false for no netif
+    errno = ENOTCONN;
     return false;
   }
 
@@ -243,6 +243,7 @@ bool MDNSClass::removeService(const char* const name, const char* const type,
   // Find a matching service
   const auto found = findService(name, type, protocol, port);
   if (!found.has_value) {
+    errno = ENXIO;
     return false;
   }
   if (found.value < maxServices()) {
@@ -277,10 +278,8 @@ void MDNSClass::Service::set(bool valid, const char* name, const char* type,
                              enum mdns_sd_proto proto, uint16_t port,
                              std::vector<std::string> (*const getTXTFunc)()) {
   valid_ = valid;
-  (void)std::strncpy(name_, name, sizeof(name_) - 1);
-  name_[sizeof(name_) - 1] = '\0';
-  (void)std::strncpy(type_, type, sizeof(type_) - 1);
-  type_[sizeof(type_) - 1] = '\0';
+  (void)std::snprintf(name_, sizeof(name_), "%s", name);
+  (void)std::snprintf(type_, sizeof(type_), "%s", type);
   proto_ = proto;
   port_ = port;
   getTXTFunc_ = getTXTFunc;
