@@ -1,0 +1,398 @@
+// PicoWi IP functions, see http://iosoft.blog/picowi for details
+//
+// Copyright (c) 2022, Jeremy P Bentham
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+// =====================================================================
+// = Modified for testing with Dogbone06 CYW4343W board and T4.1/DB5   =
+// =====================================================================
+#ifndef EVENT_H
+#define EVENT_H
+
+#include "Arduino.h"
+#include <stdint.h>
+#include "ioctl_T4.h"
+#include "misc_defs.h"
+#include "QNEthernet.h"
+#include <lwip/etharp.h>
+
+#define MAX_HANDLERS    20
+#define MAX_EVENT_STATUS 16
+#define GW_MS_DELAY 50
+#define NUM_ARP_ENTRIES 10
+
+#define MAX_SCAN_ENTRIES 80 // Initial entry count (less if not showing hidden sites).
+
+// Event handling
+#define EVT(e)      {e, #e}
+#define NO_EVTS     {EVT(-1)}
+//#define ESCAN_EVTS  {EVT(WLC_E_ESCAN_RESULT), EVT(-1)} // Original
+const EVT_STR escan_evts[] = {EVT(WLC_E_ESCAN_RESULT), // PICOWI version
+                              EVT(WLC_E_SET_SSID), 
+                              EVT(-1)};
+#define JOIN_EVTS   {EVT(WLC_E_SET_SSID), EVT(WLC_E_LINK), EVT(WLC_E_AUTH), \
+        EVT(WLC_E_DEAUTH_IND), EVT(WLC_E_DISASSOC_IND), EVT(WLC_E_PSK_SUP), EVT(-1)}
+
+#pragma pack(1)
+// Ethernet header (sdpcm_ethernet_header_t)
+typedef struct {
+    uint8_t dest_addr[6],
+            srce_addr[6];
+    uint16_t type;
+} ETHER_HDR;
+
+// Vendor-specific (Broadcom) Ethernet header (sdpcm_bcmeth_header_t) // 10 bytes
+typedef struct {
+    uint16_t subtype,
+             len;
+    uint8_t  ver,
+             oui[3];
+    uint16_t usr_subtype;
+} BCMETH_HDR;
+
+// Raw event header (sdpcm_raw_event_header_t)
+typedef struct {
+    uint16_t ver,
+             flags;
+    uint32_t event_type,
+             status,
+             reason,
+             auth_type,
+             datalen;
+    uint8_t addr[6];
+    char ifname[16];
+    uint8_t ifidx,
+            bsscfgidx;
+} EVENT_HDR;
+
+// Async event parameters, used internally
+typedef struct {
+    uint32_t chan;                      // From SDPCM header
+    uint32_t event_type, status, reason;// From async event (null if not event)
+    uint16_t flags;
+    uint16_t link;                      // Link state
+    uint32_t join;                      // Joining state
+    uint8_t *data;                      // Data block
+    int     dlen;
+    int     server_port;                // Port number if server
+    int     sock;                       // Socket number if TCP
+} EVENT_INFO;
+
+/* MAC address */
+#define MACLEN      6           /* Ethernet (MAC) address length */
+//#define MAXFRAME    1500        /* Maximum frame size (excl CRC) */
+typedef uint8_t MACADDR[MACLEN];
+
+/* Ethernet (DIX) header */
+typedef struct {
+    MACADDR dest;               /* Destination MAC address */
+    MACADDR srce;               /* Source MAC address */
+    uint16_t    ptype;              /* Protocol type or length */
+} ETHERHDR;
+
+/* ***** ICMP (Internet Control Message Protocol) header ***** */
+typedef struct
+{
+    uint8_t  type,         /* Message type */
+          code;         /* Message code */
+    uint16_t  check,        /* Checksum */
+          ident,        /* Identifier */
+          seq;          /* Sequence number */
+} ICMPHDR;
+#define ICREQ           8   /* Message type: echo request */
+#define ICREP           0   /*               echo reply */
+#define ICUNREACH       3   /*               destination unreachable */
+#define ICQUENCH        4   /*               source quench */
+#define UNREACH_NET     0   /* Destination Unreachable codes: network */
+#define UNREACH_HOST    1   /*                                host */
+#define UNREACH_PORT    3   /*                                port */
+#define UNREACH_FRAG    4   /*     fragmentation needed, but disable flag set */
+
+/* IP address is an array of bytes, to avoid misalignment problems */
+#define IPLEN           4
+typedef uint8_t            IPADDR[IPLEN];
+
+/* ***** IP (Internet Protocol) header ***** */
+typedef struct
+{
+    uint8_t   vhl,         /* Version and header len */
+           service;     /* Quality of IP service */
+    uint16_t   len,         /* Total len of IP datagram */
+           ident,       /* Identification value */
+           frags;       /* Flags & fragment offset */
+    uint8_t   ttl,         /* Time to live */
+           pcol;        /* Protocol used in data area */
+    uint16_t   check;       /* Header checksum */
+    IPADDR sip,         /* IP source addr */
+           dip;         /* IP dest addr */
+} IPHDR;
+
+#define PICMP   1           /* Protocol type: ICMP */
+#define PTCP    6           /*                TCP */
+#define PUDP   17           /*                UDP */
+
+/* ***** ARP (Address Resolution Protocol) packet ***** */
+typedef struct
+{
+    uint16_t hrd,           /* Hardware type */
+         pro;           /* Protocol type */
+    uint8_t  hln,          /* Len of h/ware addr (6) */
+          pln;          /* Len of IP addr (4) */
+    uint16_t op;            /* ARP opcode */
+    MACADDR  smac;      /* Source MAC (Ethernet) addr */
+    IPADDR   sip;       /* Source IP addr */
+    MACADDR  dmac;      /* Destination Enet addr */
+    IPADDR   dip;       /* Destination IP addr */
+} ARPKT;
+
+#define HTYPE       0x0001  /* Hardware type: ethernet */
+#define ARPPRO      0x0800  /* Protocol type: IP */
+#define ARPXXX      0x0000  /* ARP opcodes: unknown opcode */
+#define ARPREQ      0x0001  /*              ARP request */
+#define ARPRESP     0x0002  /*              ARP response */
+#define RARPREQ     0x0003  /*              RARP request */
+#define RARPRESP    0x0004  /*              RARP response */
+
+typedef struct {
+    MACADDR mac;
+    IPADDR  ipaddr;
+} ARP_ENTRY;
+
+// Scan result header (part of wl_escan_result_t)
+typedef struct {
+    uint32_t buflen;
+    uint32_t version;
+    uint16_t sync_id;
+    uint16_t bss_count;
+} SCAN_RESULT_HDR;
+
+// BSS info from EScan (part of wl_bss_info_t)
+typedef struct BSS_INFO_STRUCT_T
+{
+    uint32_t version;              // version field
+    uint32_t length;               // byte length of data in this record, starting at version and including IEs
+    uint8_t bssid[6];              // Unique 6-byte MAC address
+    uint16_t beacon_period;        // Interval between two consecutive beacon frames. Units are Kusec
+    uint16_t capability;           // Capability information
+    uint8_t ssid_len;              // SSID length
+    uint8_t ssid[32];              // Array to store SSID
+    struct                         // Added 06-25-26 WW
+    {                              // Added 06-25-26 WW
+      uint32_t nrates;             // Count of rates in this set
+      uint8_t rates[16];           // rates in 500kbps units, higher bit set if basic
+    } rateset;                     // supported rates Added 06-25-26 WW
+uint8_t dummy;                     // Added 06-25-26 WW
+    uint16_t channel;              // Channel specification for basic service set
+    uint16_t atim_window;          // Announcement traffic indication message window size. Units are Kusec
+    uint8_t dtim_period;           // Delivery traffic indication message period
+uint8_t dummy1;                    // Added 06-25-26 WW
+    int16_t rssi;                  // receive signal strength (in dBm)
+    int8_t phy_noise;              // noise (in dBm)
+    // The following fields assume the 'version' field is 109 (0x6D)
+    uint8_t n_cap;                 // BSS is 802.11N Capable
+    uint32_t nbss_cap;             // 802.11N BSS Capabilities (based on HT_CAP_*)
+    uint8_t ctl_ch;                // 802.11N BSS control channel number
+    uint32_t reserved32[1];        // Reserved for expansion of BSS properties
+    uint8_t flags;                 // flags
+    uint8_t reserved[3];           // Reserved for expansion of BSS properties
+    uint8_t basic_mcs[16];         // 802.11N BSS required MCS set
+    uint16_t ie_offset;            // offset at which IEs start, from beginning
+    uint32_t ie_length;            // byte length of Information Elements
+    int16_t snr;                   // Average SNR(signal to noise ratio) during frame reception
+    // Variable-length Information Elements follow, see cyw43_ll_wifi_parse_scan_result
+} BSS_INFO;
+
+typedef struct _cyw4343w_scan_result_internal_t {
+    uint32_t version;
+    uint32_t length;
+    uint8_t bssid[6];
+    uint16_t beacon_period;
+    uint16_t capability;
+    uint8_t ssid_len;
+    uint8_t ssid[32];
+    uint32_t rateset_count;
+    uint8_t rateset_rates[16];
+    uint16_t chanspec;
+    uint16_t atim_window;
+    uint8_t dtim_period;
+    int16_t rssi;
+    int8_t phy_noise;
+    uint8_t n_cap;
+    uint32_t nbss_cap;
+    uint8_t ctl_ch;
+    uint32_t reserved32[1];
+    uint8_t flags;
+    uint8_t reserved[3];
+    uint8_t basic_mcs[16];
+    uint16_t ie_offset;
+    uint32_t ie_length;
+    int16_t SNR;
+} cyw43_scan_result_internal_t;
+
+// For determining security type from a scan
+#define DOT11_CAP_PRIVACY             (0x0010)
+#define DOT11_IE_ID_RSN               (48)
+#define DOT11_IE_ID_VENDOR_SPECIFIC   (221)
+#define WPA_OUI_TYPE1                 "\x00\x50\xF2\x01"
+// Custom security bitfield returns
+#define SEC_OPEN   0        // 0
+#define SEC_WEP    (1 << 0) // 1
+#define SEC_WPA    (1 << 1) // 2
+#define SEC_WPA2   (1 << 2) // 4
+#define SEC_WPA3   (1 << 3) // 8
+
+// Escan result event (excluding 12-byte IOCTL header and BDC header)
+typedef struct {
+    ETHER_HDR ether;
+    BCMETH_HDR bcmeth;
+    EVENT_HDR eventh;
+    SCAN_RESULT_HDR scanh;
+//    BSS_INFO info;
+   wl_bss_info_t info;
+//    cyw43_scan_result_internal_t info;
+} ESCAN_RESULT;
+
+/**
+ * Structure to store scan result parameters for each AP
+ * Modified to add security_mask term.
+ */
+typedef struct simple_scan_result {
+    uint8_t ssid[32];        /**< Service Set Identification (i.e. Name of Access Point)                    */
+    uint8_t bssid[6];        /**< Basic Service Set Identification (i.e. MAC address of Access Point)       */
+    int16_t signal_strength; /**< Receive Signal Strength Indication in dBm. <-90=Very poor, >-30=Excellent */
+    uint8_t security[15];    /**< Security type (Simple mask version) Leave room for longer descryption     */
+    uint8_t channel;         /**< Radio channel that the AP beacon was received on                          */
+	uint8_t security_mask;   /**< Security Type mask. Used in RSN for decoding security type                */
+} simple_scan_result_t;
+
+// Scan result Array. A smaller scan struct for usage processing and display of results.
+static simple_scan_result_t  __attribute__((unused)) scan_results[MAX_SCAN_ENTRIES];
+
+typedef struct {
+    uint32_t version;
+    uint16_t action,
+             sync_id;
+    uint32_t ssidlen;
+    uint8_t  ssid[SSID_MAXLEN],
+             bssid[6],
+             bss_type,
+             scan_type;
+    int32_t  nprobes,  // Needs to accommodate negative numbers. Was uint32_t
+             active_time,
+             passive_time,
+             home_time;
+    uint16_t nchans,
+             nssids;
+    uint8_t  chans[14][2],
+             ssids[1][SSID_MAXLEN];
+} SCAN_PARAMS;
+
+typedef struct
+{
+    SDPCM_HDR sdpcm;
+    uint16_t pad;
+    BDC_HDR_T4 bdc;
+    uint8_t data[TXDATA_LEN];
+} TX_MSG;
+#pragma pack()
+
+typedef int (*event_handler_t)(EVENT_INFO *eip);
+  
+class Event;
+class Event {
+  public:
+  
+  bool init();
+  int get_gw_mac(struct netif *netif);
+  int ipInit(IPADDR addr);
+  bool add_event_handler(event_handler_t);
+  bool add_server_event_handler(event_handler_t fn, uint16_t port);
+  int event_handle(EVENT_INFO *eip);
+  int pollEvents(void);
+  int ioctl_enable_evts(EVT_STR *evtp);  
+  const char *ioctl_evt_status_str(int status);
+  const char *ioctl_evt_str(int event);
+  int ip_rx_arp(uint8_t *data, int dlen);
+  int ip_tx_eth(uint8_t *buff, int len);
+  int ip_tx_icmp(MACADDR mac, IPADDR dip, uint8_t type, uint8_t code, void *pdata);
+  int ip_rx_icmp(uint8_t *data, int dlen);
+  static int scan_event_handler(EVENT_INFO *eip);
+  static int icmp_event_handler(EVENT_INFO *eip);
+  static int arp_event_handler(EVENT_INFO *eip);
+  static uint32_t parseScanResult(ESCAN_RESULT *evsrp);
+  simple_scan_result_t *getScanResults(void);
+  bool ip_find_arp(IPADDR addr, MACADDR mac);
+  int ip_tx_arp(MACADDR mac, IPADDR addr, uint16_t op);
+  int ip_make_arp(uint8_t *buff, MACADDR mac, IPADDR addr,uint16_t op);
+  uint16_t add_csum(uint16_t sum, void *dp, int count);
+  int ip_add_data(uint8_t *buff, const void *data, int len);
+  int ip_add_icmp(uint8_t *buff, uint8_t type, uint8_t code, void *pdata);
+  int ip_add_hdr(uint8_t *buff, IPADDR dip, uint8_t pcol, uint16_t dlen);
+  int ip_add_eth(uint8_t *buff, MACADDR dmac, MACADDR smac, uint16_t pcol);
+  int ip_make_icmp(uint8_t *buff, MACADDR mac, IPADDR dip, uint8_t type, uint8_t code, void *pdata);
+
+  uint32_t ioctl_get_event(sdpcm_header_t *hp, uint8_t *data, int maxlen);
+  char *sdpcm_chan_str(int chan);
+  char *event_str(int event);
+  int event_net_tx(void *data, int len);
+  uint16_t htons(uint16_t w);
+
+  protected:
+  
+  private:
+  void ip_save_arp(MACADDR mac, IPADDR addr);
+  int ip_check_frame(uint8_t *data, int dlen);
+  void ip_cpy(uint8_t *dest, uint8_t *src);
+  void ip_print_eth(uint8_t *buff);
+  void print_ip_addr(IPADDR a);
+  void print_ip_addrs(IPHDR *ip);
+  char *mac_addr_str(char *s, uint8_t *mac);
+  void print_mac_addr(MACADDR mac);
+  void ip_print_icmp(IPHDR *ip);
+  void ip_print_arp(ARPKT *arp);
+  uint8_t rxdata[RXDATA_LEN];
+  uint8_t txbuff[TXDATA_LEN];
+  uint8_t sd_tx_seq;
+
+  uint8_t eventbuf[1600];
+  uint8_t event_mask[EVENT_MAX / 8];
+  ETH_EVENT_FRAME *eep = (ETH_EVENT_FRAME *)eventbuf;
+  EVT_STR *currentE_evts;
+  uint16_t event_ports[MAX_HANDLERS];
+
+  const char * event_status[MAX_EVENT_STATUS] = {
+    "SUCCESS","FAIL","TIMEOUT","NO_NETWORK","ABORT","NO_ACK",
+    "UNSOLICITED","ATTEMPT","PARTIAL","NEWSCAN","NEWASSOC",
+    "11HQUIET","SUPPRESS","NOCHANS","CCXFASTRM","CS_ABORT" };
+
+  ARP_ENTRY arp_entries[NUM_ARP_ENTRIES];
+  int arp_idx;
+
+  MACADDR bcast_mac={0xff,0xff,0xff,0xff,0xff,0xff};
+
+  TX_MSG tx_msg = {.sdpcm = {
+	               .chan = SDPCM_CHAN_DATA,
+	               .hdrlen = sizeof(SDPCM_HDR)+2},
+                   .bdc = {
+				   .flags=0x20}
+				  };
+
+};
+extern Event event;
+#endif

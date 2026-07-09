@@ -1,0 +1,531 @@
+// SPDX-FileCopyrightText: (c) 2021-2026 Shawn Silverman <shawn@pobox.com>
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+// qnethernet_hal.cpp implements the hardware abstraction layer (HAL).
+// This file is part of the QNEthernet library.
+
+// C includes
+#include <unistd.h>
+
+#include "qnethernet_opts.h"
+
+// C++ includes
+#if QNETHERNET_CUSTOM_WRITE
+#include <cerrno>
+#endif  // QNETHERNET_CUSTOM_WRITE
+#include <climits>
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+#include <random>
+#include <type_traits>
+
+#include <Arduino.h>
+#include <Print.h>
+#ifdef TEENSYDUINO
+#include <util/atomic.h>
+#endif  // TEENSYDUINO
+
+#include "qnethernet/compat/c++11_compat.h"
+
+// Processor-specific include
+#if defined(TEENSYDUINO)
+#if defined(__IMXRT1062__)
+#include <imxrt.h>
+#elif defined(ARDUINO_TEENSY30) || \
+      defined(ARDUINO_TEENSY32) || defined(ARDUINO_TEENSY31) || \
+      defined(ARDUINO_TEENSYLC) || \
+      defined(ARDUINO_TEENSY35) || \
+      defined(ARDUINO_TEENSY36)
+#include <kinetis.h>
+#endif  // Teensy type
+#endif  // defined(TEENSYDUINO)
+
+#include "lwip/arch.h"
+#include "lwip/debug.h"
+#include "lwip/prot/ethernet.h"
+
+// --------------------------------------------------------------------------
+//  Time
+// --------------------------------------------------------------------------
+
+extern "C" {
+
+// Returns the current time in milliseconds.
+ATTRIBUTE_WEAK
+uint32_t qnethernet_hal_millis() {
+  return millis();
+}
+
+// Returns the current time in microseconds.
+ATTRIBUTE_WEAK
+uint32_t qnethernet_hal_micros() {
+  return micros();
+}
+
+#ifdef TEENSYDUINO
+#if QNETHERNET_PROVIDE_TEENSY_SETTIMEOFDAY
+// Provide a Teensy implementation.
+
+// Notes:
+// * The type of tv_usec is suseconds_t, range is at least [-1, 1000000]
+// * There are 32768 ticks per 1,000,000 microseconds; that's where 512/15625
+//   comes from, it's 32768/1000000 in lowest terms
+// Refs:
+// * https://pubs.opengroup.org/onlinepubs/007904975/basedefs/sys/time.h.html
+// * https://pubs.opengroup.org/onlinepubs/007904975/basedefs/sys/types.h.html
+
+ATTRIBUTE_WEAK
+int settimeofday(const struct timeval* const tv,
+                 const struct timezone* const tz) {
+  (void)tz;
+
+  if (tv == nullptr) {
+    // Do nothing
+    return 0;
+  }
+
+  auto sec  = static_cast<uint32_t>(tv->tv_sec);
+  auto usec = static_cast<uint32_t>(tv->tv_usec);
+
+  // Assume 's' and 'u' have the proper range
+  if (tv->tv_usec >= 1000000) {
+    sec += tv->tv_usec / 1000000;
+    usec = tv->tv_usec % 1000000;
+  } else if (tv->tv_usec < 0) {
+    sec += tv->tv_usec / 1000000;
+    usec = 1000000 + (tv->tv_usec % 1000000);
+  }
+
+#ifndef __IMXRT1062__
+  const uint32_t lo = ((usec << 9) / 15625u) & 0x7fffu;
+
+  // Disable time counter
+  RTC_SR = 0;
+
+  RTC_TPR = lo;
+  RTC_TSR = sec;
+
+  // Enable time counter
+  RTC_SR = RTC_SR_TCE;
+#else
+  const uint32_t hi = (sec >> 17) & 0x7fffu;
+  const uint32_t lo = (sec << 15) | (((usec << 9) / 15625u) & 0x7fffu);
+
+  // Code similar to teensy4 core's rtc_set(t)
+  // This version sets the microseconds too
+
+  // Stop the RTC
+  SNVS_HPCR &= ~(SNVS_HPCR_RTC_EN | SNVS_HPCR_HP_TS);
+  while ((SNVS_HPCR & SNVS_HPCR_RTC_EN) != 0) {
+    // Wait
+  }
+
+  // Stop the SRTC
+  SNVS_LPCR &= ~SNVS_LPCR_SRTC_ENV;
+  while ((SNVS_LPCR & SNVS_LPCR_SRTC_ENV) != 0) {
+    // Wait
+  }
+
+  // Set the SRTC
+  SNVS_LPSRTCLR = lo;
+  SNVS_LPSRTCMR = hi;
+
+  // Start the SRTC
+  SNVS_LPCR |= SNVS_LPCR_SRTC_ENV;
+  while ((SNVS_LPCR & SNVS_LPCR_SRTC_ENV) == 0) {
+    // Wait
+  }
+
+  // Start the RTC and sync it to the SRTC
+  SNVS_HPCR |= (SNVS_HPCR_RTC_EN | SNVS_HPCR_HP_TS);
+#endif  // !__IMXRT1062__
+
+  return 0;
+}
+#endif  // QNETHERNET_PROVIDE_TEENSY_SETTIMEOFDAY
+#endif  // TEENSYDUINO
+
+}  // extern "C"
+
+// --------------------------------------------------------------------------
+//  stdio
+// --------------------------------------------------------------------------
+
+#if QNETHERNET_CUSTOM_WRITE
+
+// The user program can set these to something initialized. For example,
+// `&Serial`, after `Serial.begin(speed)`.
+namespace qindesign {
+namespace network {
+
+Print* volatile stdoutPrint = nullptr;
+Print* volatile stderrPrint = nullptr;
+
+}  // namespace network
+}  // namespace qindesign
+
+#endif  // QNETHERNET_CUSTOM_WRITE
+
+// Gets the Print* for the given file descriptor.
+ATTRIBUTE_NODISCARD
+static inline Print* getPrint(const int file) {
+  switch (file) {
+#if QNETHERNET_CUSTOM_WRITE
+    case STDOUT_FILENO:
+      return ::qindesign::network::stdoutPrint;
+    case STDERR_FILENO:
+      return ::qindesign::network::stderrPrint;
+#else
+    case STDOUT_FILENO:
+      ATTRIBUTE_FALLTHROUGH;
+    case STDERR_FILENO:
+      return &Serial;
+#endif  // QNETHERNET_CUSTOM_WRITE
+    case STDIN_FILENO:
+      return nullptr;
+    default:
+      return reinterpret_cast<Print*>(file);
+  }
+}
+
+extern "C" {
+
+#if QNETHERNET_CUSTOM_WRITE
+
+// Define this function to provide expanded stdio output behaviour. This should
+// work for Newlib-based systems.
+// See: https://forum.pjrc.com/threads/28473-Quick-Guide-Using-printf()-on-Teensy-ARM
+// Note: Can't define as weak by default because we don't know which `_write`
+//       would be chosen by the linker, this one or the one defined elsewhere
+//       (Print.cpp, for example)
+int _write(const int file, const void* const buf, const size_t len) {
+  Print* const out = getPrint(file);
+  if (out == nullptr) {
+    errno = EBADF;
+    return -1;
+  }
+
+  return out->write(static_cast<const uint8_t*>(buf), len);
+}
+
+#endif  // QNETHERNET_CUSTOM_WRITE
+
+// Ensures the Print object is flushed because fflush() just flushes by writing
+// to the FILE*. This doesn't necessarily send all the bytes right away. For
+// example, Serial/USB output behaves this way.
+void qnethernet_hal_stdio_flush(const int file) {
+  Print* const p = getPrint(file);
+  if (p != nullptr) {
+    p->flush();
+  }
+}
+
+}  // extern "C"
+
+// --------------------------------------------------------------------------
+//  Core Locking
+// --------------------------------------------------------------------------
+
+extern "C" {
+
+// Asserts if this is called from an interrupt context.
+ATTRIBUTE_WEAK
+void qnethernet_hal_check_core_locking(const char* const file, const int line,
+                                       const char* const func) {
+  bool inInterruptCtx = false;
+
+#if defined(__arm__)
+  uint32_t ipsr;
+  __asm__ volatile ("mrs %0, ipsr\n" : "=r" (ipsr) ::);
+  inInterruptCtx = (ipsr != 0);
+#endif  // defined(__arm__)
+
+  if (inInterruptCtx) {
+    (void)std::printf("%s:%d:%s()\r\n", file, line, func);
+    LWIP_PLATFORM_ASSERT("Function called from interrupt context");
+  }
+}
+
+}  // extern "C"
+
+// --------------------------------------------------------------------------
+//  Randomness
+// --------------------------------------------------------------------------
+
+// Choose what gets included and called
+#if (defined(TEENSYDUINO) && defined(__IMXRT1062__)) && \
+    !QNETHERNET_USE_ENTROPY_LIB
+
+#define WHICH_ENTROPY_TYPE 1  // Teensy 4
+#include "qnethernet/entropy/entropy.h"
+
+#elif defined(__has_include)
+// https://gcc.gnu.org/onlinedocs/cpp/_005f_005fhas_005finclude.html
+#if __has_include(<Entropy.h>)
+
+#define WHICH_ENTROPY_TYPE 2  // Entropy library
+#include <Entropy.h>
+#endif  // __has_include(<Entropy.h>)
+
+#endif  // Which entropy type
+
+extern "C" {
+
+// Initializes randomness.
+ATTRIBUTE_WEAK void qnethernet_hal_init_entropy();
+
+// Uninitializes randomness.
+ATTRIBUTE_WEAK void qnethernet_hal_deinit_entropy();
+
+// Estimates the number of bits of entropy, given the size of a type.
+ATTRIBUTE_WEAK double qnethernet_hal_estimate_entropy(size_t typeSize);
+
+// Available entropy without having to generate more.
+ATTRIBUTE_WEAK size_t qnethernet_hal_entropy_available();
+
+// Gets 32-bits of entropy for LWIP_RAND() and random_device.
+ATTRIBUTE_WEAK uint32_t qnethernet_hal_entropy();
+
+// Fills a buffer with random values. This will return the number of bytes
+// actually filled.
+ATTRIBUTE_WEAK size_t qnethernet_hal_fill_entropy(void* buf, size_t size);
+
+#if WHICH_ENTROPY_TYPE == 1
+
+void qnethernet_hal_init_entropy() {
+  if (!::qindesign::entropy::trng_is_started()) {
+    ::qindesign::entropy::trng_init();
+  }
+}
+
+void qnethernet_hal_deinit_entropy() {
+  if (::qindesign::entropy::trng_is_started()) {
+    ::qindesign::entropy::trng_deinit();
+  }
+}
+
+double qnethernet_hal_estimate_entropy(const size_t typeSize) {
+  return typeSize * CHAR_BIT;
+}
+
+size_t qnethernet_hal_entropy_available() {
+  return ::qindesign::entropy::trng_available();
+}
+
+uint32_t qnethernet_hal_entropy() {
+  uint32_t r;
+  LWIP_ASSERT("entropy generation error",
+              ::qindesign::entropy::entropy_random(&r));
+  return r;
+}
+
+size_t qnethernet_hal_fill_entropy(void* const buf, const size_t size) {
+  return ::qindesign::entropy::trng_data(buf, size);
+}
+
+#elif WHICH_ENTROPY_TYPE == 2
+
+void qnethernet_hal_init_entropy() {
+#if defined(TEENSYDUINO) && defined(__IMXRT1062__)
+  // Don't reinitialize
+  const bool doEntropyInit =
+      ((CCM_CCGR6 & CCM_CCGR6_TRNG(CCM_CCGR_ON_RUNONLY)) !=
+       CCM_CCGR6_TRNG(CCM_CCGR_ON_RUNONLY)) ||
+      ((TRNG_MCTL & TRNG_MCTL_TSTOP_OK) != 0);
+#else
+  const bool doEntropyInit = true;
+#endif  // defined(TEENSYDUINO) && defined(__IMXRT1062__)
+  if (doEntropyInit) {
+    Entropy.Initialize();
+  }
+}
+
+void qnethernet_hal_deinit_entropy() {
+}
+
+double qnethernet_hal_estimate_entropy(const size_t typeSize) {
+  return typeSize * CHAR_BIT;
+}
+
+size_t qnethernet_hal_entropy_available() {
+  return Entropy.available();
+}
+
+uint32_t qnethernet_hal_entropy() {
+  return Entropy.random();
+}
+
+#else
+
+// Returns a UniformRandomBitGenerator instance.
+ATTRIBUTE_NODISCARD
+static std::minstd_rand& urbg_instance() {
+  static std::minstd_rand gen;
+  return gen;
+}
+
+void qnethernet_hal_init_entropy() {
+  urbg_instance().seed(qnethernet_hal_micros());
+}
+
+void qnethernet_hal_deinit_entropy() {
+}
+
+double qnethernet_hal_estimate_entropy(const size_t typeSize) {
+  (void)typeSize;
+  return 0.0;
+}
+
+size_t qnethernet_hal_entropy_available() {
+  using T = std::remove_reference<decltype(urbg_instance())>::type::result_type;
+  return (sizeof(T) >= sizeof(size_t))
+             ? std::numeric_limits<size_t>::max()
+             : static_cast<size_t>(std::numeric_limits<T>::max());
+}
+
+uint32_t qnethernet_hal_entropy() {
+  return urbg_instance()();
+}
+
+#endif  // Which entropy type
+
+// Multi-byte fill
+#if WHICH_ENTROPY_TYPE != 1
+
+size_t qnethernet_hal_fill_entropy(void* const buf, const size_t size) {
+  auto pBuf = static_cast<uint8_t*>(buf);
+
+  const size_t count = size / 4;
+  for (size_t i = 0; i < count; ++i) {
+    const uint32_t r = qnethernet_hal_entropy();
+    (void)std::memcpy(pBuf, &r, 4);
+    pBuf += 4;
+  }
+
+  const size_t rem = size % 4;
+  if (rem != 0) {
+    const uint32_t r = qnethernet_hal_entropy();
+    (void)std::memcpy(pBuf, &r, rem);
+  }
+
+  return size;
+}
+
+#endif  // Which entropy type
+
+}  // extern "C"
+
+// --------------------------------------------------------------------------
+//  Interrupts
+// --------------------------------------------------------------------------
+
+extern "C" {
+
+// Disables interrupts.
+ATTRIBUTE_WEAK
+void qnethernet_hal_disable_interrupts() {
+  noInterrupts();
+}
+
+// Enables interrupts.
+ATTRIBUTE_WEAK
+void qnethernet_hal_enable_interrupts() {
+  interrupts();
+}
+
+#if defined(__arm__)
+
+ATTRIBUTE_WEAK
+uint32_t qnethernet_hal_disable_and_return_interrupts() {
+  uint32_t state;
+  __asm__ volatile("MRS %[result], PRIMASK" : [result] "=r"(state)::);
+  qnethernet_hal_disable_interrupts();
+  return state;
+}
+
+ATTRIBUTE_WEAK
+void qnethernet_hal_restore_interrupts(uint32_t state) {
+  __asm__ volatile("MSR PRIMASK, %[value]" ::[value] "r"(state) :);
+}
+
+#endif  // __arm__ (should have PRIMASK)
+
+}  // extern "C"
+
+// --------------------------------------------------------------------------
+//  MAC Address
+// --------------------------------------------------------------------------
+
+#if !defined(TEENSYDUINO)
+static const uint8_t kDefaultMACAddress[ETH_HWADDR_LEN]{
+    QNETHERNET_DEFAULT_MAC_ADDRESS,
+};
+#endif  // !defined(TEENSYDUINO)
+
+extern "C" {
+
+// Gets the system MAC address. This will either be some platform-specific value
+// or a predefined value.
+ATTRIBUTE_WEAK
+void qnethernet_hal_get_system_mac_address(uint8_t mac[ETH_HWADDR_LEN]) {
+  if (mac == nullptr) {
+    return;
+  }
+
+#if defined(TEENSYDUINO) && defined(__IMXRT1062__)
+  const uint32_t m1 = HW_OCOTP_MAC1;
+  const uint32_t m2 = HW_OCOTP_MAC0;
+  mac[0] = static_cast<uint8_t>(m1 >>  8);
+  mac[1] = static_cast<uint8_t>(m1 >>  0);
+  mac[2] = static_cast<uint8_t>(m2 >> 24);
+  mac[3] = static_cast<uint8_t>(m2 >> 16);
+  mac[4] = static_cast<uint8_t>(m2 >>  8);
+  mac[5] = static_cast<uint8_t>(m2 >>  0);
+#elif defined(ARDUINO_TEENSY30) || \
+      defined(ARDUINO_TEENSY32) || defined(ARDUINO_TEENSY31) || \
+      defined(ARDUINO_TEENSYLC)
+  // usb_desc.c:usb_init_serialnumber()
+  ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
+    FTFL_FSTAT = FTFL_FSTAT_RDCOLERR | FTFL_FSTAT_ACCERR | FTFL_FSTAT_FPVIOL;
+    FTFL_FCCOB0 = 0x41;
+    FTFL_FCCOB1 = 15;
+    FTFL_FSTAT = FTFL_FSTAT_CCIF;
+    while (!(FTFL_FSTAT & FTFL_FSTAT_CCIF)) {
+      // Wait
+    }
+    const uint32_t num = *reinterpret_cast<volatile uint32_t*>(&FTFL_FCCOB7);
+  }
+
+  mac[0] = 0x04;
+  mac[1] = 0xE9;
+  mac[2] = 0xE5;
+  mac[3] = static_cast<uint8_t>(num >> 16);
+  mac[4] = static_cast<uint8_t>(num >>  8);
+  mac[5] = static_cast<uint8_t>(num >>  0);
+#elif defined(ARDUINO_TEENSY35) || defined(ARDUINO_TEENSY36)
+  // usb_desc.c:usb_init_serialnumber()
+  ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
+    LWIP_ASSERT("Expected HSRUN disable success", kinetis_hsrun_disable() != 0);
+    FTFL_FSTAT = FTFL_FSTAT_RDCOLERR | FTFL_FSTAT_ACCERR | FTFL_FSTAT_FPVIOL;
+    *reinterpret_cast<volatile uint32_t*>(&FTFL_FCCOB3) = 0x41070000;
+    FTFL_FSTAT = FTFL_FSTAT_CCIF;
+    while (!(FTFL_FSTAT & FTFL_FSTAT_CCIF)) {
+      // Wait
+    }
+    const uint32_t num = *reinterpret_cast<volatile uint32_t*>(&FTFL_FCCOBB);
+    LWIP_ASSERT("Expected HSRUN enable success", kinetis_hsrun_enable() != 0);
+  }
+
+  mac[0] = 0x04;
+  mac[1] = 0xE9;
+  mac[2] = 0xE5;
+  mac[3] = static_cast<uint8_t>(num >> 16);
+  mac[4] = static_cast<uint8_t>(num >>  8);
+  mac[5] = static_cast<uint8_t>(num >>  0);
+#else
+  (void)std::memcpy(mac, kDefaultMACAddress, ETH_HWADDR_LEN);
+#endif  // Board type
+}
+
+}  // extern "C"
