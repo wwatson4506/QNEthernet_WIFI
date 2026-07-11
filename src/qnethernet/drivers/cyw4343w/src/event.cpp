@@ -565,7 +565,7 @@ int Event::event_net_tx(void *data, int len) {
     int txlen = sizeof(SDPCM_HDR)+2+sizeof(BDC_HDR_T4)+len;
     if(display_mode & DISP_DATA) {
       WIFIcard.disp_bytes((uint8_t *)data, len);
-      Serial.printf("\n");
+      printf("\n");
     }
     txp->sdpcm.len = txlen;
     txp->sdpcm.notlen = ~txp->sdpcm.len;
@@ -626,7 +626,7 @@ void Event::print_ip_addr(IPADDR a) {
 // Display IP addresses in IP header
 void Event::print_ip_addrs(IPHDR *ip) {
     print_ip_addr(ip->sip);
-    Serial.printf("->");
+    printf("->");
     print_ip_addr(ip->dip);
 }
 

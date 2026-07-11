@@ -14,18 +14,18 @@ EVT_STR join_evts[] = JOIN_EVTS;
 
 bool Join::join_start(const char *ssID, const char *passphrase, int security) {
 #if INIT_DEBUG_MODE == true
-  Serial.printf(SER_YELLOW "In joinNetworks\n", SER_RESET);
+  printf(SER_YELLOW "In joinNetworks\n" SER_RESET);
 #endif
   // Make sure we have changed the default SSID to your SSID in "QNEthernet_WIFI/src/secrets.h".
   if(!strcmp(ssID,(const char *)"yourSSID")) {
-    Serial.printf("Error: The default SSID is being used.\n");
-    Serial.printf("In 'QNEthernet_WIFI/src/secrets.h' change 'yourSSID' to your WIFI router's SSID.\n");
+    printf("Error: The default SSID is being used.\n");
+    printf("In 'QNEthernet_WIFI/src/secrets.h' change 'yourSSID' to your WIFI router's SSID.\n");
     return false;
   }
   // Make sure we have changed the default password to your password in "QNEthernet_WIFI/src/secrets.h".
   if(!strcmp(passphrase,(const char *)"yourPWD")) {
-    Serial.printf("Error: The default password is being used.\n");
-    Serial.printf("In 'QNEthernet_WIFI/src/secrets.h' change 'yourPWD' to your WIFI router's password.\n");
+    printf("Error: The default password is being used.\n");
+    printf("In 'QNEthernet_WIFI/src/secrets.h' change 'yourPWD' to your WIFI router's password.\n");
     return false;
   }
   // Process SSID
@@ -40,28 +40,28 @@ bool Join::join_start(const char *ssID, const char *passphrase, int security) {
 	strcpy((char *)wsec_pmk.key, passphrase);
 
   if (!WIFIcard.ioctl_wr_int32(WLC_UP, 200, 0)) {
-    Serial.printf(SER_RED "\nWiFi CPU not running\n" SER_RESET);
+    printf(SER_RED "\nWiFi CPU not running\n" SER_RESET);
     return false;
   } else {
 #if INIT_DEBUG_MODE == true
-    Serial.printf(SER_GREEN "WiFi CPU running\n" SER_RESET);
+    printf(SER_GREEN "WiFi CPU running\n" SER_RESET);
 #endif
   }
 
   if (WIFIcard.ioctl_set_data("country", 100, &country_struct, sizeof(country_struct)) == true) {
 #if INIT_DEBUG_MODE == true
-    Serial.printf(SER_TRACE "Set country succesfully\n" SER_RESET);
+    printf(SER_TRACE "Set country succesfully\n" SER_RESET);
 #endif
   } else {
-    Serial.printf(SER_ERROR "\nFailed to set country\n" SER_RESET);
+    printf(SER_ERROR "\nFailed to set country\n" SER_RESET);
   }
 
   if (joinevt.ioctl_enable_evts(no_evts) == true) {
 #if INIT_DEBUG_MODE == true
-    Serial.printf(SER_TRACE "\nNo events enabled\n" SER_RESET);
+    printf(SER_TRACE "\nNo events enabled\n" SER_RESET);
 #endif
   } else {
-    Serial.printf(SER_RED "\nNo events not enabled\n" SER_RESET);
+    printf(SER_RED "\nNo events not enabled\n" SER_RESET);
     return false;
   }
   
@@ -84,10 +84,10 @@ bool Join::join_start(const char *ssID, const char *passphrase, int security) {
 
   if (joinevt.ioctl_enable_evts(join_evts) == true) {
 #if INIT_DEBUG_MODE == true
-    Serial.printf(SER_TRACE "Join events enabled\n" SER_RESET);
+    printf(SER_TRACE "Join events enabled\n" SER_RESET);
 #endif
   } else {
-    Serial.printf(SER_RED "Join events not enabled\n" SER_RESET);
+    printf(SER_RED "Join events not enabled\n" SER_RESET);
     return false;
   }
   CHECK(WIFIcard.ioctl_wr_data, WLC_SET_SSID, 100, &ssid, sizeof(ssid));
@@ -161,7 +161,7 @@ bool Join::join_restart(const char *ssid, const char *passwd, int security) {
 // Handler for join events (link & auth changes)
 int Join::join_event_handler(EVENT_INFO *eip) {
     int ret = 1;
-    uint16_t news;
+    uint16_t news; // Event type bit flag.
     if (eip->chan == SDPCM_CHAN_EVT)
     {
         news = eip->link;
@@ -182,57 +182,43 @@ int Join::join_event_handler(EVENT_INFO *eip) {
 
 // Poll the network joining state machine
 void Join::join_state_poll(const char *ssid, const char *passwd, int security) {
-    EVENT_INFO *eip = &event_info;
-    static uint32_t join_ticks;
-    static char *s = NULL, *p = NULL;
+  EVENT_INFO *eip = &event_info;
+  static uint32_t join_ticks;
+  static char *s = NULL, *p = NULL;
 
-    if (ssid)
-        s = (char *)ssid;
-    if (passwd)
-        p = (char *)passwd;
-    if (eip->join == JOIN_IDLE)
-    {
+  if(ssid) s = (char *)ssid;
+  if(passwd) p = (char *)passwd;
+  if(eip->join == JOIN_IDLE) {
 #if INIT_DEBUG_MODE == true
-        Serial.printf("Joining network %s\n", s);
+    printf("Joining network %s\n", s);
 #endif
-        eip->link = 0;
-        eip->join = JOIN_JOINING;
-        ustimeout(&join_ticks, 0);
-        join_restart(s, p, security);
-    }
-    else if (eip->join == JOIN_JOINING)
-    {
-        if (link_check() > 0)
-        {
+    eip->link = 0;
+    eip->join = JOIN_JOINING;
+    WIFIcard.ustimeout(&join_ticks, 0);
+    join_restart(s, p, security);
+  } else if(eip->join == JOIN_JOINING) {
+    if(link_check() > 0) {
 #if INIT_DEBUG_MODE == true
-            Serial.printf(SER_GREEN "\n********************* LINK Established *********************\n" SER_RESET);
-            Serial.printf(SER_YELLOW "\n********************* Joined Network ***********************\n\n" SER_RESET);
+      printf(SER_GREEN "\n********************* LINK Established *********************\n" SER_RESET);
+      printf(SER_YELLOW "\n********************* Joined Network ***********************\n\n" SER_RESET);
 #endif
-            eip->join = JOIN_OK;
-        }
-        else if (link_check()<0 || ustimeout(&join_ticks, JOIN_TRY_USEC))
-        {
-            Serial.printf(SER_RED "\n******************** Failed to join network ************************\n\n" SER_RESET);
-            ustimeout(&join_ticks, 0);
-            join_stop();
-            eip->join = JOIN_FAIL;
-        }
+      eip->join = JOIN_OK;
+    } else if(link_check() < 0 || WIFIcard.ustimeout(&join_ticks, JOIN_TRY_USEC)) {
+      printf(SER_RED "\n******************** Failed to join network ************************\n\n" SER_RESET);
+      WIFIcard.ustimeout(&join_ticks, 0);
+      join_stop();
+      eip->join = JOIN_FAIL;
     }
-    else if (eip->join == JOIN_OK)
-    {
-        ustimeout(&join_ticks, 0);
-        if (link_check() < 1)
-        {
-            Serial.printf("Leaving network\n");
-            join_stop();
-            eip->join = JOIN_FAIL;
-        }
+  } else if(eip->join == JOIN_OK) {
+    WIFIcard.ustimeout(&join_ticks, 0);
+    if(link_check() < 1) {
+      printf("Leaving network\n");
+      join_stop();
+      eip->join = JOIN_FAIL;
     }
-    else  // JOIN_FAIL
-    {
-        if (ustimeout(&join_ticks, JOIN_RETRY_USEC))
-            eip->join = JOIN_IDLE;
-    }
+  } else { // JOIN_FAIL
+    if(WIFIcard.ustimeout(&join_ticks, JOIN_RETRY_USEC)) eip->join = JOIN_IDLE;
+  }
 }
 
 // Return 1 if link to network, -1 if error linking

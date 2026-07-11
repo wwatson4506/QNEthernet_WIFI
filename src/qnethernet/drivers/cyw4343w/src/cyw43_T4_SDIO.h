@@ -20,13 +20,10 @@
 #endif  // WIFI_MAX_INIT_RATE_KHZ
 /**/
 #define CHECK(f, a, ...) /*{if (f(a, __VA_ARGS__) == false) {\*/
-                          /*Serial.printf(SER_RED "\nError: %s(%s ...)\n" SER_RESET, #f, #a);}\*/
+                          /*printf(SER_RED "\nError: %s(%s ...)\n" SER_RESET, #f, #a);}\*/
                         /*else {\*/
-                          /*Serial.printf(SER_TRACE "\nSuccess: %s(%s ...)\n" SER_RESET, #f, #a);}\*/
+                          /*printf(SER_TRACE "\nSuccess: %s(%s ...)\n" SER_RESET, #f, #a);}\*/
                         /*}*/
-
-bool ustimeout(uint32_t *tickp, uint32_t usec);
-
 class W4343WCard;
 //------------------------------------------------------------------------------
 /**
@@ -36,32 +33,33 @@ class W4343WCard;
 class W4343WCard { //: public Event , public T4_SDIO {
  public:
   /** Initialize the WIFI card.
-   * \param[in] useSDIO2 WIFI card configuration.
-   * \return true for success or false for failure.
-   */
+  * \param[in] useSDIO2 WIFI card configuration.
+  * \return true for success or false for failure.
+  */
   bool begin(bool useSDIO2, int8_t wlOnPin, int8_t wlIrqPin, int8_t extLPOPin = -1);
 
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
-    uint32_t __attribute__((error("use sectorCount()"))) cardSize();
+  uint32_t __attribute__((error("use sectorCount()"))) cardSize();
 #endif  // DOXYGEN_SHOULD_SKIP_THIS
-    /**
-     * \return code for the last error. See SdCardInfo.h for a list of error codes.
-     */
-    uint8_t errorCode() const;
-    /** \return error data for last error. */
-    uint32_t errorData() const;
-    /** \return error line for last error. Tmp function for debug. */
-    uint32_t errorLine() const;
-    /** \return the WiFi clock frequency in kHz. */
-    uint32_t kHzWiFiClk();
-    ///////////////////////////
-    // IRW new public functions
-    ///////////////////////////
-    int getMACAddress(uint8_t * mac);
-    void getFirmwareVersion();
-    void getCLMVersion(bool prntVrfy = false);
-    void postInitSettings();
-    void join_network_poll(void);
+  /**
+  * \return code for the last error. See SdCardInfo.h for a list of error codes.
+  */
+  uint8_t errorCode() const;
+  /** \return error data for last error. */
+  uint32_t errorData() const;
+  /** \return error line for last error. Tmp function for debug. */
+  uint32_t errorLine() const;
+  /** \return the WiFi clock frequency in kHz. */
+  uint32_t kHzWiFiClk();
+  ///////////////////////////
+  // IRW new public functions
+  ///////////////////////////
+  int getMACAddress(uint8_t * mac);
+  char *getFirmwareVersion();
+  char *getCLMVersion(void);
+  void postInitSettings();
+  void join_network_poll(void);
+  bool ustimeout(uint32_t *tickp, uint32_t usec);
 
   ///////////////////////////////
   // End IRW new public functions
@@ -109,44 +107,43 @@ class W4343WCard { //: public Event , public T4_SDIO {
   void printResponse(bool return_value);
   void printMACAddress(uint8_t * data);
   void printSSID(uint8_t * data);
-void ioctl_err_display(int retval);
+  void ioctl_err_display(int retval);
   IMXRT_USDHC_t *m_psdhc;
 
   //-----------------------------------------------------------------------------------------------------------------
 
-  private:
-    static const uint8_t IDLE_STATE = 0;
-    static const uint8_t READ_STATE = 1;
-    static const uint8_t WRITE_STATE = 2;
-    uint32_t m_curSector;
-    uint8_t m_curState = IDLE_STATE;
-    static volatile bool fUseSDIO2;
-    int8_t m_wlIrqPin = -1;
+private:
+  static const uint8_t IDLE_STATE = 0;
+  static const uint8_t READ_STATE = 1;
+  static const uint8_t WRITE_STATE = 2;
+  uint32_t m_curSector;
+  uint8_t m_curState = IDLE_STATE;
+  static volatile bool fUseSDIO2;
+  int8_t m_wlIrqPin = -1;
 
-    // move helper functions into class.
-    typedef bool (W4343WCard::*pcheckfcn)();
-    bool cardCommand(uint32_t xfertyp, uint32_t arg);
-    void enableSDIO(bool enable);
-    void enableDmaIrs();
-    void initSDHC();
-    bool isBusyCommandComplete();
-    bool isBusyCommandInhibit();
-    void setWiFiclk(uint32_t kHzMax);
-    bool waitTimeout(pcheckfcn fcn);
-    inline bool setWifiErrorCode(uint8_t code, uint32_t line);
+  // move helper functions into class.
+  typedef bool (W4343WCard::*pcheckfcn)();
+  bool cardCommand(uint32_t xfertyp, uint32_t arg);
+  void enableSDIO(bool enable);
+  void enableDmaIrs();
+  void initSDHC();
+  bool isBusyCommandComplete();
+  bool isBusyCommandInhibit();
+  void setWiFiclk(uint32_t kHzMax);
+  bool waitTimeout(pcheckfcn fcn);
+  inline bool setWifiErrorCode(uint8_t code, uint32_t line);
     
-    /////////////////////////////////////////////
-    void printRegs(uint32_t line);
-    static void wifiISR();
-    static void wifiISR2(); // one for second SDIO
-    static W4343WCard *s_pSdioCards[2];
-    void gpioMux(uint8_t mode);
-    void initClock();
-    uint32_t baseClock();
+  /////////////////////////////////////////////
+  static void wifiISR();
+  static void wifiISR2(); // one for second SDIO
+  static W4343WCard *s_pSdioCards[2];
+  void gpioMux(uint8_t mode);
+  void initClock();
+  uint32_t baseClock();
     
-    ////////////////////
-    // IRW new functions
-    ////////////////////
+  ////////////////////
+  // IRW new functions
+  ////////////////////
   void makeSDIO_DAT1();
   void makeGPIO_DAT1();
   bool SDIOEnableFunction(uint8_t functionEnable);
@@ -184,9 +181,8 @@ void ioctl_err_display(int retval);
   volatile uint32_t m_irqstat;
   uint32_t m_WiFiClkKhz = 0;
   uint32_t m_ocr;
-//  cid_t m_cid;
-//  csd_t m_csd;
 };
-//static W4343WCard wifiCard;
+
 extern W4343WCard WIFIcard;
+
 #endif  // CYW43_T4_SDIO_H
