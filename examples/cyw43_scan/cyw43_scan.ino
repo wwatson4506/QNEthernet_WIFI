@@ -49,7 +49,6 @@ void setup()
     waitForInput();
   }
   Serial.printf("CPU speed: %ld MHz\n", F_CPU_ACTUAL / 1'000'000);
-
   scnevt.add_event_handler(scnevt.scan_event_handler);
 
   //////////////////////////////////////////
@@ -63,7 +62,7 @@ void setup()
     WIFIcard.wifiSetup(); // Only needed for wifi scan usage
     WIFIcard.postInitSettings();
     Serial.println("initialization done");
-    if (WIFIcard.getMACAddress(mac) > 0) {
+    if(WIFIcard.getMACAddress(mac) > 0) {
       Serial.printf("MAC address - ");
       for (uint8_t i = 0; i < 6; i++) {
         Serial.printf("%s%02X", i ? ":" : "", mac[i]);
@@ -81,14 +80,14 @@ void loop() {
   Serial.println("\n\n====== STARTING SCAN ======"); 
   if(!scan.scan_start())
     Serial.printf("Error: can't start scan\n");
-  ustimeout(&scnpoll_ticks, 0);
+  WIFIcard.ustimeout(&scnpoll_ticks, 0);
   while (1) {
     // Get any events
-    if(ustimeout(&scnpoll_ticks, 10000)) {
+    if(WIFIcard.ustimeout(&scnpoll_ticks, 10000)) {
       if(scnevt.pollEvents() < 0) { // -1, scan finished.
         break;
       }
-      ustimeout(&scnpoll_ticks, 0);
+      WIFIcard.ustimeout(&scnpoll_ticks, 0);
     }
   }
 
