@@ -134,10 +134,10 @@ struct pbuf* proc_input(struct netif *netif, int counter) {
 
 void poll(struct netif *netif) {
   // Get any events, poll the joining state machine
-  if(ustimeout(&poll_ticks, EVENT_POLL_USEC)) {
+  if(WIFIcard.ustimeout(&poll_ticks, EVENT_POLL_USEC)) {
     evt.pollEvents();
     qnjoin.join_state_poll(MY_SSID, MY_PASSPHRASE, SECURITY);
-    ustimeout(&poll_ticks, 0);
+    WIFIcard.ustimeout(&poll_ticks, 0);
   }
   uint8_t link_up = qnjoin.join_check() ? 1 : 0;
   if (netif_is_link_up(netif) != link_up) {
