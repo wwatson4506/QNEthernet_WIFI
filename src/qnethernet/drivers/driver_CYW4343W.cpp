@@ -111,7 +111,7 @@ void deinit() {
   qnjoin.join_stop();
 }
 
-// driver_proc_input() NOT WORKING with ping!!!!
+// driver_proc_input()
 struct pbuf* proc_input(struct netif *netif, int counter) {
   // Finish any pending link and join status check
   if(netif_is_link_up(netif) == 0) return NULL; 
@@ -156,7 +156,6 @@ void poll(struct netif *netif) {
 err_t output(struct pbuf *p) {
   uint8_t *buffer;
   buffer = (uint8_t *)malloc(p->tot_len*sizeof(uint8_t));
-
   const uint16_t copied = pbuf_copy_partial(p, buffer, p->tot_len, 0);
   if (copied != p->tot_len) {
     return ERR_BUF;
