@@ -12,10 +12,14 @@ Event joinevt;
 EVT_STR no_evts[] = NO_EVTS;
 EVT_STR join_evts[] = JOIN_EVTS;
 
+// =====================================================================
+// Join Start (params stored in secrets.h)
+// =====================================================================
 bool Join::join_start(const char *ssID, const char *passphrase, int security) {
 #if INIT_DEBUG_MODE == true
   printf(SER_YELLOW "In joinNetworks\n" SER_RESET);
 #endif
+  join_stop(); // Make sure we are shut down before starting.
   // Make sure we have changed the default SSID to your SSID in "QNEthernet_WIFI/src/secrets.h".
   if(!strcmp(ssID,(const char *)"yourSSID")) {
     printf("Error: The default SSID is being used.\n");
@@ -29,17 +33,15 @@ bool Join::join_start(const char *ssID, const char *passphrase, int security) {
     return false;
   }
   // Process SSID
-	wlc_ssid_t ssid;
-	ssid.SSID_len = strlen(ssID);
-	strcpy((char *)ssid.SSID, ssID);
-  
+  wlc_ssid_t ssid;
+  ssid.SSID_len = strlen(ssID);
+  strcpy((char *)ssid.SSID, ssID);
   // Process PASSWORD
-	wsec_pmk_t wsec_pmk;
-	wsec_pmk.key_len = strlen(passphrase);
-	wsec_pmk.flags = WSEC_PASSPHRASE;
-	strcpy((char *)wsec_pmk.key, passphrase);
-
-  if (!WIFIcard.ioctl_wr_int32(WLC_UP, 200, 0)) {
+  wsec_pmk_t wsec_pmk;
+  wsec_pmk.key_len = strlen(passphrase);
+  wsec_pmk.flags = WSEC_PASSPHRASE;
+  strcpy((char *)wsec_pmk.key, passphrase);
+  if(!WIFIcard.ioctl_wr_int32(WLC_UP, 200, 0)) {
     printf(SER_RED "\nWiFi CPU not running\n" SER_RESET);
     return false;
   } else {
@@ -47,15 +49,13 @@ bool Join::join_start(const char *ssID, const char *passphrase, int security) {
     printf(SER_GREEN "WiFi CPU running\n" SER_RESET);
 #endif
   }
-
-  if (WIFIcard.ioctl_set_data("country", 100, &country_struct, sizeof(country_struct)) == true) {
+  if(WIFIcard.ioctl_set_data("country", 100, &country_struct, sizeof(country_struct)) == true) {
 #if INIT_DEBUG_MODE == true
     printf(SER_TRACE "Set country succesfully\n" SER_RESET);
 #endif
   } else {
     printf(SER_ERROR "\nFailed to set country\n" SER_RESET);
   }
-
   if (joinevt.ioctl_enable_evts(no_evts) == true) {
 #if INIT_DEBUG_MODE == true
     printf(SER_TRACE "\nNo events enabled\n" SER_RESET);
@@ -64,12 +64,9 @@ bool Join::join_start(const char *ssID, const char *passphrase, int security) {
     printf(SER_RED "\nNo events not enabled\n" SER_RESET);
     return false;
   }
-  
   CHECK(WIFIcard.ioctl_set_uint32, "ampdu_ba_wsize", 0, 8);
-
   CHECK(WIFIcard.ioctl_wr_int32, WLC_SET_INFRA, 50, 1);
   CHECK(WIFIcard.ioctl_wr_int32, WLC_SET_AUTH, 0, 0);
-
   if(security != 0) {
     CHECK(WIFIcard.ioctl_wr_int32, WLC_SET_WSEC, 0, security == 2 ? 6 : 2);
     CHECK(WIFIcard.ioctl_set_intx2, "bsscfg:sup_wpa", 0, 0, 1);
@@ -81,7 +78,6 @@ bool Join::join_start(const char *ssID, const char *passphrase, int security) {
     CHECK(WIFIcard.ioctl_wr_int32, WLC_SET_WSEC, 0, 0);
     CHECK(WIFIcard.ioctl_wr_int32, WLC_SET_WPA_AUTH, 0, 0);
   }
-
   if (joinevt.ioctl_enable_evts(join_evts) == true) {
 #if INIT_DEBUG_MODE == true
     printf(SER_TRACE "Join events enabled\n" SER_RESET);
@@ -91,10 +87,9 @@ bool Join::join_start(const char *ssID, const char *passphrase, int security) {
     return false;
   }
   CHECK(WIFIcard.ioctl_wr_data, WLC_SET_SSID, 100, &ssid, sizeof(ssid));
-
-#if defined(USE_MCAST) 
+#if USE_MCAST == true 
   // Enable multicast
-  WIFIcard.ioctl_set_data2((const char *)"mcast_list", IOCTL_WAIT, (void *)mcast_addr, sizeof(mcast_addr), false);
+  WIFIcard.ioctl_set_data2((char *)"mcast_list", IOCTL_WAIT, (void *)mcast_addr, sizeof(mcast_addr), false);
   delayMicroseconds(50000);
 #endif
   // Register SSID and password with polling function
@@ -102,85 +97,95 @@ bool Join::join_start(const char *ssID, const char *passphrase, int security) {
   return true;
 }
 
+// =====================================================================
 // Stop trying to join network
 // (Set WiFi interface 'down', ignore IOCTL response)
+// =====================================================================
 bool Join::join_stop(void) {
-    WIFIcard.ioctl_wr_data(WLC_DOWN, 50, 0, 0); 
-    return(true);
+  WIFIcard.ioctl_wr_data(WLC_DOWN, 50, 0, 0); 
+  return(true);
 }
 
+// =====================================================================
 // Retry joining a network
+// =====================================================================
 bool Join::join_restart(const char *ssid, const char *passwd, int security) {
-    uint32_t n;
-    uint8_t data[100];
-    bool ret=0;
+  uint32_t n;
+  uint8_t data[100];
+  bool ret=0;
     
-    // Start up the interface
-    WIFIcard.ioctl_wr_data(WLC_UP, 50, 0, 0);
-
-    ret = WIFIcard.ioctl_wr_int32(WLC_SET_GMODE, IOCTL_WAIT, 0x01) > 0 &&
-          WIFIcard.ioctl_wr_int32(WLC_SET_BAND, IOCTL_WAIT, 0x00) > 0 &&
-          WIFIcard.ioctl_set_uint32((char *)"pm2_sleep_ret", IOCTL_WAIT, 0xc8) > 0 &&
-          WIFIcard.ioctl_set_uint32((char *)"bcn_li_bcn", IOCTL_WAIT, 0x01) > 0 &&
-          WIFIcard.ioctl_set_uint32((char *)"bcn_li_dtim", IOCTL_WAIT, 0x01) > 0 &&
-          WIFIcard.ioctl_set_uint32((char *)"assoc_listen", IOCTL_WAIT, 0x0a) > 0;
+  // Start up the interface
+  WIFIcard.ioctl_wr_data(WLC_UP, 50, 0, 0);
+  ret = WIFIcard.ioctl_wr_int32(WLC_SET_GMODE, IOCTL_WAIT, 0x01) > 0 &&
+        WIFIcard.ioctl_wr_int32(WLC_SET_BAND, IOCTL_WAIT, 0x00) > 0 &&
+        WIFIcard.ioctl_set_uint32((char *)"pm2_sleep_ret", IOCTL_WAIT, 0xc8) > 0 &&
+        WIFIcard.ioctl_set_uint32((char *)"bcn_li_bcn", IOCTL_WAIT, 0x01) > 0 &&
+        WIFIcard.ioctl_set_uint32((char *)"bcn_li_dtim", IOCTL_WAIT, 0x01) > 0 &&
+        WIFIcard.ioctl_set_uint32((char *)"assoc_listen", IOCTL_WAIT, 0x0a) > 0;
 /*
 #if POWERSAVE    
     // Enable power saving
     init_powersave();
 #endif    
 */
-    // Wireless security
-    ret = ret && WIFIcard.ioctl_wr_int32(WLC_SET_INFRA, 50, 1) > 0 &&
+  // Wireless security
+  ret = ret &&
+        WIFIcard.ioctl_wr_int32(WLC_SET_INFRA, 50, 1) > 0 &&
         WIFIcard.ioctl_wr_int32(WLC_SET_AUTH, IOCTL_WAIT, 0) > 0;
-
   if(security != 0) {
-    ret = ret && WIFIcard.ioctl_wr_int32(WLC_SET_WSEC, IOCTL_WAIT, security==2 ? 6 : 2) > 0 &&
-        WIFIcard.ioctl_set_data((char *)"bsscfg:sup_wpa", IOCTL_WAIT, (void *)"\x00\x00\x00\x00\x01\x00\x00\x00", 8) > 0 &&
-        WIFIcard.ioctl_set_data((char *)"bsscfg:sup_wpa2_eapver", IOCTL_WAIT, (void *)"\x00\x00\x00\x00\xFF\xFF\xFF\xFF", 8) > 0 &&
-        WIFIcard.ioctl_set_data((char *)"bsscfg:sup_wpa_tmo", IOCTL_WAIT, (void *)"\x00\x00\x00\x00\xC4\x09\x00\x00", 8) > 0;
+    ret = ret &&
+          WIFIcard.ioctl_wr_int32(WLC_SET_WSEC, IOCTL_WAIT, security==2 ? 6 : 2) > 0 &&
+          WIFIcard.ioctl_set_data((char *)"bsscfg:sup_wpa", IOCTL_WAIT, (void *)"\x00\x00\x00\x00\x01\x00\x00\x00", 8) > 0 &&
+          WIFIcard.ioctl_set_data((char *)"bsscfg:sup_wpa2_eapver", IOCTL_WAIT, (void *)"\x00\x00\x00\x00\xFF\xFF\xFF\xFF", 8) > 0 &&
+          WIFIcard.ioctl_set_data((char *)"bsscfg:sup_wpa_tmo", IOCTL_WAIT, (void *)"\x00\x00\x00\x00\xC4\x09\x00\x00", 8) > 0;
     delayMicroseconds(2000);
     n = strlen(passwd);
     *(uint32_t *)data = n + 0x10000;
     strcpy((char *)&data[4], passwd);
-    ret = ret && WIFIcard.ioctl_wr_data(WLC_SET_WSEC_PMK, IOCTL_WAIT, data, n+4) >0 &&
-        WIFIcard.ioctl_wr_int32(WLC_SET_INFRA, IOCTL_WAIT, 0x01) > 0 &&
-        WIFIcard.ioctl_wr_int32(WLC_SET_AUTH, IOCTL_WAIT, 0x00) > 0 &&
-        WIFIcard.ioctl_wr_int32(WLC_SET_WPA_AUTH, IOCTL_WAIT, security==2 ? 0x80 : 4) > 0;
-     } else {
-       ret = ret && WIFIcard.ioctl_wr_int32(WLC_SET_WSEC, IOCTL_WAIT, 0) > 0 &&
-                   WIFIcard.ioctl_wr_int32(WLC_SET_WPA_AUTH, IOCTL_WAIT, 0) > 0;
-    }      
-    n = strlen(ssid);
-    *(uint32_t *)data = n;
-    strcpy((char *)&data[4], ssid);
-    ret = ret && WIFIcard.ioctl_wr_data(WLC_SET_SSID, IOCTL_WAIT, data, n+4) > 0;
-    return(ret);
+    ret = ret &&
+          WIFIcard.ioctl_wr_data(WLC_SET_WSEC_PMK, IOCTL_WAIT, data, n+4) >0 &&
+          WIFIcard.ioctl_wr_int32(WLC_SET_INFRA, IOCTL_WAIT, 0x01) > 0 &&
+          WIFIcard.ioctl_wr_int32(WLC_SET_AUTH, IOCTL_WAIT, 0x00) > 0 &&
+          WIFIcard.ioctl_wr_int32(WLC_SET_WPA_AUTH, IOCTL_WAIT, security==2 ? 0x80 : 4) > 0;
+  } else {
+    ret = ret &&
+          WIFIcard.ioctl_wr_int32(WLC_SET_WSEC, IOCTL_WAIT, 0) > 0 &&
+          WIFIcard.ioctl_wr_int32(WLC_SET_WPA_AUTH, IOCTL_WAIT, 0) > 0;
+  }      
+  n = strlen(ssid);
+  *(uint32_t *)data = n;
+  strcpy((char *)&data[4], ssid);
+  ret = ret && WIFIcard.ioctl_wr_data(WLC_SET_SSID, IOCTL_WAIT, data, n+4) > 0;
+  return(ret);
 }
 
+// =====================================================================
 // Handler for join events (link & auth changes)
+// =====================================================================
 int Join::join_event_handler(EVENT_INFO *eip) {
-    int ret = 1;
-    uint16_t news; // Event type bit flag.
-    if (eip->chan == SDPCM_CHAN_EVT)
-    {
-        news = eip->link;
-        if (eip->event_type==WLC_E_LINK && eip->status==0)
-            news = eip->flags&1 ? news|LINK_UP_OK : news&~LINK_UP_OK;
-        else if (eip->event_type == WLC_E_PSK_SUP)
-            news = (eip->status==6) ? news|LINK_AUTH_OK : news&~LINK_AUTH_OK;
-        else if (eip->event_type == WLC_E_DISASSOC_IND)
-            news = LINK_FAIL;
-        else
-            ret = 0;
-        eip->link = news;
+  int ret = 1;
+  uint16_t news; // Event type bit flag.
+  if(eip->chan == SDPCM_CHAN_EVT) {
+    news = eip->link;
+    if(eip->event_type==WLC_E_LINK && eip->status==0) {
+      news = eip->flags&1 ? news|LINK_UP_OK : news&~LINK_UP_OK;
+    } else if(eip->event_type == WLC_E_PSK_SUP) {
+      news = (eip->status==6) ? news|LINK_AUTH_OK : news&~LINK_AUTH_OK;
+    } else if(eip->event_type == WLC_E_DISASSOC_IND) {
+      news = LINK_FAIL;
     } else {
-        ret = 0;
+      ret = 0;
     }
-     return(ret);
+  } else {
+    ret = 0;
+  }
+  eip->link = news;
+  return(ret);
 }
 
+// =====================================================================
 // Poll the network joining state machine
+// =====================================================================
 void Join::join_state_poll(const char *ssid, const char *passwd, int security) {
   EVENT_INFO *eip = &event_info;
   static uint32_t join_ticks;
@@ -221,15 +226,19 @@ void Join::join_state_poll(const char *ssid, const char *passwd, int security) {
   }
 }
 
+// =====================================================================
 // Return 1 if link to network, -1 if error linking
+// =====================================================================
 int Join::link_check(void) {
-    EVENT_INFO *eip=&event_info;
-    return((eip->link&LINK_OK) == LINK_OK ? 1 : 
-            eip->link == LINK_FAIL ? -1 : 0);
+  EVENT_INFO *eip=&event_info;
+  return((eip->link&LINK_OK) == LINK_OK ? 1 : 
+          eip->link == LINK_FAIL ? -1 : 0);
 }
 
+// =====================================================================
 // Return 2 if joined network, -1 if error joining
+// =====================================================================
 int Join::join_check(void) {
-    EVENT_INFO *eip=&event_info;
+  EVENT_INFO *eip=&event_info;
     return((eip->join&JOIN_OK) == JOIN_OK ? 2 : eip->join == JOIN_FAIL ? -1 : 0);
 }

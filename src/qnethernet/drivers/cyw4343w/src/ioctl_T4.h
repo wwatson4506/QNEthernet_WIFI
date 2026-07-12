@@ -9,9 +9,6 @@
 #define IOCTL_SET_SCAN_CHANNEL_TIME 0xB9
 
 #define IOCTL_POLL_MSEC     2
-#define SCAN_CHAN_TIME      40
-#define SCANTYPE_ACTIVE     0
-#define SCANTYPE_PASSIVE    1
 
 #define IOCTL_WAIT          30      // Time to wait for ioctl response (msec)
 #define IOCTL_WAIT_USEC     2000
@@ -21,13 +18,6 @@
 #define IOCTL_MAX_BLKLEN    1600 // pico versions need this.
 
 #define SSID_MAXLEN         32
-
-#define EVENT_SET_SSID      0
-#define EVENT_JOIN          1
-#define EVENT_AUTH          3
-#define EVENT_LINK          16
-#define EVENT_MAX           208
-#define SET_EVENT(msk, e)   msk[e/8] |= 1 << (e & 7)
 
 #define DL_BEGIN			0x0002
 #define DL_END				0x0004
@@ -156,16 +146,6 @@ typedef struct whd_event
     whd_event_header_t whd_event;    /**< Variable to store rest of the event packet fields after ethernet header */
     /* data portion follows */
 } whd_event_t;
-
-struct brcmf_escan_params_le {
-	uint32_t version;
-	uint16_t action;
-	uint16_t _;
-	union {
-		struct brcmf_scan_params_le params_le;
-		struct brcmf_scan_params_v2_le params_v2_le;
-	};
-};
 
 // Event structures
 typedef struct {

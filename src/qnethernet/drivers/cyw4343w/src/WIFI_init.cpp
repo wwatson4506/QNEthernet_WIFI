@@ -2,10 +2,7 @@
 
 #include "cyw43_T4_SDIO.h"
 #include "misc_defs.h"
-//#include "join.h"
-//#include "event.h"
 #include "WIFI_init.h"
-
 
 using namespace qindesign::network::driver;
 
@@ -29,9 +26,8 @@ int WIFIinit(const char *ssID, const char *passphrase, int security) {
   if (WIFIcard.begin(true, 33, 34, -1) == true) { 
     WIFIcard.wifiSetup(); // Only needed for wifi scan usage
     WIFIcard.postInitSettings();
-    delay(100);
+    delay(500); // Give the CYW4343W time to settle in.
     WIFIcard.getMACAddress(llmac); // Get Low Level MAC Addrees.
-
     // Use "secrets.h" to set MY_SSID, MY_PASSPHRASE, SECURITY.
     if(!join.join_start(ssID, passphrase, security)) {
       printf("*************** Error: Join Network Failed! ***************\n");

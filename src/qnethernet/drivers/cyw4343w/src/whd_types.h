@@ -21,8 +21,6 @@
  */
 
 #include <stdint.h>
-#include "cy_result.h"
-#include "cyhal_hw_types.h"
 
 #ifndef INCLUDED_WHD_TYPES_H_
 #define INCLUDED_WHD_TYPES_H_
@@ -31,6 +29,8 @@
 extern "C"
 {
 #endif
+/** GPIO object */
+typedef uint32_t /* TODO: port specific type */ cyhal_gpio_t;
 
 /******************************************************
 *                      Macros

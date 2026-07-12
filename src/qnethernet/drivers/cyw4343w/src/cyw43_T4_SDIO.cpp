@@ -69,9 +69,7 @@
 //==============================================================================
 // MAC address stuff.
 //==============================================================================
-#define MACLEN 6      // Ethernet (MAC) address length
-uint8_t my_mac[6];    // Internal MAC usage.
-MACADDR gw_mac;       // Gateway MAC.
+uint8_t my_mac[MACLEN];    // Internal MAC usage.
 //==============================================================================
 
 
@@ -1457,7 +1455,7 @@ int W4343WCard::ioctl_cmd_poll_device(int wait_msec, int wr, void *data, int dle
       ret = cardCMD53_read(SD_FUNC_RAD, SB_32BIT_WIN, (uint8_t *)hdr, 4, logOutput);
       if(hdr[0] == 0 && hdr[1] == 0) {
         // no packets
-#if USE_DEBUG_MODE
+#if USE_DEBUG_MODE == true
         printf(SER_ERROR "No packets\n" SER_RESET);
 #endif
         had_successful_packet = false;
@@ -1474,7 +1472,7 @@ int W4343WCard::ioctl_cmd_poll_device(int wait_msec, int wr, void *data, int dle
       // Discard response if not matching request
       if((rsp->cmd.flags >> 16) != ioctl_reqid) {
 #if DEBUG_WARNINGS == true
-        printf(SER_WARN "None matching request: cmd.flags: %ld, ioctl_reqid: %ld\n" SER_RESET, (rsp->cmd.flags >> 16), ioctl_reqid);
+        printf(SER_WARN "None matching request: cmd.flags: %ld, ioctl_reqid: %d\n" SER_RESET, (rsp->cmd.flags >> 16), ioctl_reqid);
 #endif
         ret = 0;
       }
@@ -1489,7 +1487,7 @@ int W4343WCard::ioctl_cmd_poll_device(int wait_msec, int wr, void *data, int dle
         memcpy(data, rsp->cmd.data, dlen);
       }
     } else { // If no response, wait
-#if USE_DEBUG_MODE
+#if USE_DEBUG_MODE == true
       printf("No respsone, wait....\n");
 #endif
       delay(IOCTL_POLL_MSEC);

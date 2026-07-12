@@ -9,7 +9,7 @@
 #endif
 //---------------------------------------------------
 // Un-comment to enable multicast.
-//#define USE_MCAST 1
+#define USE_MCAST false
 
 // Init Debug Mode. Displays initialization processes.
 #define INIT_DEBUG_MODE false
@@ -18,7 +18,7 @@
 #define DEBUG_WARNINGS false
 
 // More verbose
-//#define USE_DEBUG_MODE 1
+#define USE_DEBUG_MODE false
 
 // Show hidden sites during scan.
 #define SHOW_HIDDEN false
@@ -62,32 +62,8 @@
 #define SWAP16_2(x) ((((x) & 0xff000000) >> 8) | (((x) & 0xff0000) << 8) | \
                     (((x) & 0xff00) >> 8)      | (((x) & 0xff) << 8))
 
-// Display mask values
-#define DISP_NOTHING    0       // No display
-#define DISP_INFO       0x01    // General information
-#define DISP_SPI        0x02    // SPI transfers
-#define DISP_REG        0x04    // Register read/write
-#define DISP_SDPCM      0x08    // SDPCM transfers
-#define DISP_IOCTL      0x10    // IOCTL read/write
-#define DISP_EVENT      0x20    // Event reception
-#define DISP_DATA       0x40    // Data transfers
-#define DISP_JOIN       0x80    // Network joining
-
-#define DISP_ETH        0x1000  // Ethernet header
-#define DISP_ARP        0x2000  // ARP header
-#define DISP_ICMP       0x4000  // ICMP header
-#define DISP_UDP        0x8000  // UDP header
-#define DISP_DHCP       0x10000 // DHCP header
-#define DISP_DNS        0x20000 // DNS header
-#define DISP_SOCK       0x40000 // Socket
-#define DISP_TCP        0x80000 // TCP
-#define DISP_TCP_STATE  0x100000 // TCP state
-
-#define LED_PIN   10
-#define FIFO_SDIO 0
-#define DMA_SDIO  1
-#define USE_SDIO2 2
 #define MACLEN    6           /* Ethernet (MAC) address length */
+
 // Check if MAC address is non-zero
 #define IS_MAC_NONZERO(a) (a[0] || a[1] || a[2] || a[3] || a[4] || a[5])
 // Copy a MAC address
@@ -117,9 +93,6 @@
 #define IP_ZERO(a)      (a[0] = a[1] = a[2] = a[3] = 0)
 // Check if IP address is zero
 #define IP_IS_ZERO(a)   ((a[0] || a[1] || a[2] || a[3]) == 0)
-
-#define PCOL_ARP    0x0806      /* Protocol type: ARP */
-#define PCOL_IP     0x0800      /*                IP */
 
 #define PRINT_SCAN_TEMPLATE()                   printf("\n**********************************************************************************************\n" \
                                                 "* #          SSID                             RSSI   Channel       BSSID          Security   *\n" \
