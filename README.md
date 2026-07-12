@@ -47,12 +47,19 @@ This define in QNEthernet_opts.h switches betweeen the two:
 #define ARDUINO_TEENSY41_CYW4343W 1
 #endif
 ```
-Two new examples specific to the CYW4343W have been added:
-- cyw43_ping.ino
-- cyw43_scan.ino
 
-The wifi scan function was rewoked and now works without issue. 
+## CHANGES/UPDATES
+- The wifi scan function was reworked and now works without issue. 
 
+07-12-26:
+  - Removed all unused code including cyw43_ping.ino, ICMP code, ARP code, unused ".h" files, IP code etc...
+  - Removed unused debug code.
+  - removed unused structs.
+  - Removed unused defines and variables.
+  - Removed cyw43_ping.ino, ping.h and all references to ICMP usage.
+  - Moved all scan code functions and defines from event.cpp and event.h to scan.cpp and scan.h.
+  - Moved all join code functions and defines from event.cpp and event.h to join.cpp and join.h.
+  - 
 ### Again this is work in progress. Those with the other hardware and CYW4343W chip types at hand can do testing.
 ### Most of the Arduino style Ethernet library has been tested and works. This library is found at:
 https://github.com/wwatson4506/QNEthernet_WIFI_Examples
