@@ -54,7 +54,7 @@ This define in QNEthernet_opts.h switches betweeen the two:
 07-12-26:
   - Removed all unused code including cyw43_ping.ino, ICMP code, ARP code, unused ".h" files, IP code etc...
   - Removed unused debug code.
-  - removed unused structs.
+  - Removed unused structs.
   - Removed unused defines and variables.
   - Removed cyw43_ping.ino, ping.h and all references to ICMP and ARP usage.
   - Moved all scan code functions and defines from event.cpp and event.h to scan.cpp and scan.h.
