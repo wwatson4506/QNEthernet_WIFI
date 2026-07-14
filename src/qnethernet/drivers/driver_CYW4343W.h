@@ -7,3 +7,6 @@
 
 #define ETH_PAD_SIZE 0  /* 2 */
 #define EVENT_POLL_USEC    100000 //100000
+
+#define LINK_UP 1
+#define LINK_DOWN 0
