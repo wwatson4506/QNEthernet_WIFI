@@ -60,22 +60,34 @@ typedef enum {
 
 static enet_init_states_t s_initState = kInitStateStart;
 
+//==============================================================================
+// Get System MAC address.
+//==============================================================================
 void get_system_mac(uint8_t mac[ETH_HWADDR_LEN]) {
   WIFIcard.getMACAddress((uint8_t *)mac);
 }
 
+//==============================================================================
+// Get current MAC address.
+//==============================================================================
 bool get_mac(uint8_t mac[ETH_HWADDR_LEN]) {
   if(qnjoin.join_check() != JOIN_OK) return false;
   WIFIcard.getMACAddress((uint8_t *)mac);
   return true;
 }
 
+//==============================================================================
+// Set MAC address (Not resetable).
+//==============================================================================
 bool set_mac(const uint8_t mac[ETH_HWADDR_LEN]) {
-  if(qnjoin.join_check() != JOIN_OK) return false;
-  WIFIcard.getMACAddress((uint8_t *)mac);
+//  if(qnjoin.join_check() != JOIN_OK) return false;
+//  WIFIcard.getMACAddress((uint8_t *)mac);
   return true;
 }
 
+//==============================================================================
+// Has Hardware.
+//==============================================================================
 bool has_hardware() {
   switch (s_initState) {
     case kInitStateHasHardware:
@@ -89,15 +101,22 @@ bool has_hardware() {
     default:
       break;
   }
-  // Init WIFI hardware and join network.
+  // Init CYW4343W WIFI hardware and join network.
   WIFIinit(MY_SSID, MY_PASSPHRASE, SECURITY);
   return true;
 }
 
+
+//==============================================================================
+// UNUSED.
+//==============================================================================
 void set_chip_select_pin(int pin) {
 	(void)pin;
 }
 
+//==============================================================================
+// Previously initialized. Marked initialized here.
+//==============================================================================
 bool init(void) {
   if (s_initState == kInitStateInitialized) {
     return true;
@@ -107,17 +126,23 @@ bool init(void) {
   }
 }
 
+//==============================================================================
+// Leave network.
+//==============================================================================
 void deinit() {
   qnjoin.join_stop();
 }
 
-// driver_proc_input()
+//==============================================================================
+// driver_proc_input().
+//==============================================================================
 struct pbuf* proc_input(struct netif *netif, int counter) {
   // Finish any pending link and join status check
   if(netif_is_link_up(netif) == 0) return NULL; 
-  sdpcm_header_t hp;
+  sdpcm_header_t hp; // Get capy of WIFI header struct.
   uint8_t bf[MAX_FRAME_LEN];
   uint32_t data_len;
+  // Check for an available event frame.
   if((data_len = evt.ioctl_get_event(&hp, bf, MAX_FRAME_LEN)) > 0) {
     struct pbuf *p = pbuf_alloc(PBUF_RAW, data_len+ETH_PAD_SIZE, PBUF_RAM);
     if (p == NULL) {
@@ -132,13 +157,18 @@ struct pbuf* proc_input(struct netif *netif, int counter) {
   return NULL;
 }
 
+//==============================================================================
+// Poll network.
+//==============================================================================
 void poll(struct netif *netif) {
-  // Get any events, poll the joining state machine
+  // Get any events, poll the joining state machine.
   if(WIFIcard.ustimeout(&poll_ticks, EVENT_POLL_USEC)) {
-    evt.pollEvents();
+    evt.pollEvents(); // Check for an event frame.
+    // Poll join status. Try to re-join if link is lost.
     qnjoin.join_state_poll(MY_SSID, MY_PASSPHRASE, SECURITY);
-    WIFIcard.ustimeout(&poll_ticks, 0);
+    WIFIcard.ustimeout(&poll_ticks, 0); // Clear Polling timout counter.
   }
+  // Check if link is up.
   uint8_t link_state = qnjoin.join_check() ? LINK_UP : LINK_DOWN;
   if (netif_is_link_up(netif) != link_state) {
     if (link_state) {
@@ -153,20 +183,28 @@ void poll(struct netif *netif) {
   }
 }
 
+//==============================================================================
+// 
+//==============================================================================
 err_t output(struct pbuf *p) {
   uint8_t *buffer;
+  // Create a packet buffer.
   buffer = (uint8_t *)malloc(p->tot_len*sizeof(uint8_t));
-
+  // Fill buffer with packet info.
   const uint16_t copied = pbuf_copy_partial(p, buffer, p->tot_len, 0);
   if (copied != p->tot_len) {
     return ERR_BUF;
   }
+  // Transmit buffer.
   evt.event_net_tx(buffer, copied + ETH_PAD_SIZE);
-  free(buffer);
+  free(buffer);  // Free buffer mem.
   return ERR_OK;
 }
 
 #if QNETHERNET_ENABLE_RAW_FRAME_SUPPORT
+//==============================================================================
+// Same as output.
+//==============================================================================
 bool output_frame(const void *frame, size_t len) {
   if (len > (UINT16_MAX - ETH_PAD_SIZE)) {
     return false;
@@ -180,10 +218,16 @@ bool output_frame(const void *frame, size_t len) {
 }
 #endif
 
+//==============================================================================
+// Basic, is link up or down?
+//==============================================================================
 void get_link_info(struct LinkInfo* const li) {
   *li = s_linkInfo;
 }
 
+//==============================================================================
+// UNUSED.
+//==============================================================================
 bool set_incoming_mac_address_allowed(const uint8_t mac[ETH_HWADDR_LEN],
                                              bool allow) {
   // CYW4343W MAC address is fixed in chip.
@@ -191,12 +235,18 @@ bool set_incoming_mac_address_allowed(const uint8_t mac[ETH_HWADDR_LEN],
 }
 
 #if !QNETHERNET_ENABLE_PROMISCUOUS_MODE
+//==============================================================================
+// UNUSED.
+//==============================================================================
 bool set_mac_address_allowed(const uint8_t mac[ETH_HWADDR_LEN], bool allow) {
   // CYW4343W MAC address is fixed in chip.
   return false;
 }
 #endif
 
+//==============================================================================
+// Start at begin().
+//==============================================================================
 bool is_unknown() {
   return s_initState == kInitStateStart;;
 }
