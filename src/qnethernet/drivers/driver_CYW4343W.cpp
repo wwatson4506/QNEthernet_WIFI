@@ -139,16 +139,16 @@ void poll(struct netif *netif) {
     qnjoin.join_state_poll(MY_SSID, MY_PASSPHRASE, SECURITY);
     WIFIcard.ustimeout(&poll_ticks, 0);
   }
-  uint8_t link_up = qnjoin.join_check() ? 1 : 0;
-  if (netif_is_link_up(netif) != link_up) {
-    if (link_up) {
+  uint8_t link_state = qnjoin.join_check() ? LINK_UP : LINK_DOWN;
+  if (netif_is_link_up(netif) != link_state) {
+    if (link_state) {
       printf("Setting link up\n");
       netif_set_link_up(netif);
-      s_checkLinkStatusState = link_up;
+      s_checkLinkStatusState = link_state; //
     } else {
       printf("Setting link down\n");
       netif_set_link_down(netif);
-      s_checkLinkStatusState = link_up;
+      s_checkLinkStatusState = link_state;
     }
   }
 }
@@ -156,6 +156,7 @@ void poll(struct netif *netif) {
 err_t output(struct pbuf *p) {
   uint8_t *buffer;
   buffer = (uint8_t *)malloc(p->tot_len*sizeof(uint8_t));
+
   const uint16_t copied = pbuf_copy_partial(p, buffer, p->tot_len, 0);
   if (copied != p->tot_len) {
     return ERR_BUF;
