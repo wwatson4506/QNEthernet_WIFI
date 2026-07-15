@@ -47,7 +47,7 @@ void setup()
     waitForInput();
   }
   Serial.printf("CPU speed: %ld MHz\n", F_CPU_ACTUAL / 1'000'000);
-  scan.add_event_handler(scan.scan_event_handler);
+  scnevt.add_event_handler(scan.scan_event_handler);
 
   //////////////////////////////////////////
   //Begin parameters: 
@@ -82,7 +82,7 @@ void loop() {
   while (1) {
     // Get any events
     if(WIFIcard.ustimeout(&scnpoll_ticks, 10000)) {
-      if(scan.pollEvents() < 0) { // -1, scan finished.
+      if(scnevt.pollEvents() < 0) { // -1, scan finished.
         break;
       }
       WIFIcard.ustimeout(&scnpoll_ticks, 0);
