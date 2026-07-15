@@ -36,7 +36,7 @@ TEENSY 4.1   WIFI Board
 
 Set MY_SSID to your network wifi name and set MY_PASSPHRASE to your chosen password. Set SECURITY to one of the three types.
 
-Most all of the examples seem to work. Some have not been tested. Right now simplePing.ino and ping.ino are not working. More work to do on those. 
+Most all of the examples seem to work. Some have not been tested. Sketches simplePing.ino and ping.ino are working now. 
 
 This branch of the QNEthernet (QNEthernet_WIFI_0.36.0) library will allow you to use both wired and wifi ethernet on the Teensy4.1.
 This define in QNEthernet_opts.h switches betweeen the two:
