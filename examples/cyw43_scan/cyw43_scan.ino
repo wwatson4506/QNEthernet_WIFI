@@ -24,7 +24,6 @@
 #include <QNEthernet.h>
 #include "../src/qnethernet/drivers/cyw4343w/src/cyw43_T4_SDIO.h"
 #include "../src/qnethernet/drivers/cyw4343w/src/event.h"
-#include "../src/secrets.h"
 #include "../src/qnethernet/drivers/cyw4343w/src/scan.h"
 
 using namespace qindesign::network;
