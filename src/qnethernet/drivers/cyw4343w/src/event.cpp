@@ -164,9 +164,9 @@ int Event::pollEvents() {
     eip->event_type = SWAP32(eep->event.msg.event_type);
     eip->status = SWAP32(eep->event.msg.status);
     eip->reason = SWAP32(eep->event.msg.reason);
-    eip->data = eventbuf+10; //NOTE: Need to move eventbuf ahead by 10 bytes.
-                             //      ioctl_get_event() has a 10 byte prefix that
-                             //      is not used. Not sure what the 10 bytes are yet.
+    // Vendor-specific (Broadcom) Ethernet header (sdpcm_bcmeth_header_t) // 10 bytes
+    eip->data = eventbuf+sizeof(BCMETH_HDR); // +10
+    //NOTE: Need to move eventbuf ahead by 10 bytes.
     eip->dlen = n; // Size of received data in bytes.
     eip->sock = -1;
     ret = event_handle(eip); // Distribute to proper event handler.

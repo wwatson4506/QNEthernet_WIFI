@@ -1,3 +1,29 @@
+// CYW4343W low level SDIO driver.
+//
+// Copyright (c) 2025 - 2026,  Ian Wall, Warren Watson.
+// Parts of the SDIO driver taken from the SdFst library by:
+// Copyright (c) 2011-2021 Bill Greiman
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+// =====================================================================
+// = Modified for testing with Dogbone06 CYW4343W board and T4.1/DB5   =
+// =====================================================================
 /**
  * Copyright (c) 2011-2021 Bill Greiman
  * This file is part of the SdFat library for SD memory cards.
@@ -804,7 +830,8 @@ uint32_t W4343WCard::backplaneWindow_write32(uint32_t addr, uint32_t val) {
 }
 
 //==============================================================================
-// Upload firmware to CYW4343x.
+// Upload firmware to CYW4343x (Using byte mode instead of block mode).
+// TODO: Need to setup block mode transfers.
 //==============================================================================
 bool W4343WCard::uploadFirmware(size_t firmwareSize, uintptr_t source) {
   uint32_t nBytesSent = 0;
@@ -845,7 +872,7 @@ bool W4343WCard::uploadNVRAM(size_t nvRAMSize, uintptr_t source) {
       cardCMD53_write(SD_FUNC_BAK, offset + nBytesSent, (uint8_t *)source + nBytesSent, len, false);
       nBytesSent += len;
   }
-  //Calculate size, write at end of section
+  //Calculate size, write at end of section (remainder).
   u32Data u32d;
   u32d.uint32 = ((~(nvRAMSize / 4) & 0xffff) << 16) | (nvRAMSize / 4);
   cardCMD53_write(SD_FUNC_BAK, 0x10000 - 4, u32d.bytes, 4, false);
@@ -883,7 +910,7 @@ bool W4343WCard::uploadCLM() {
 	ret = ioctl_set_data("clmload", 1500, chunk_buf, sizeof(brcmf_dload_data_le) + chunk_buf->len - 1, false);
 	cumulative_len += chunk_buf->len;
 	datalen -= chunk_buf->len;
-	} while((datalen > 0) && (ret == 1));
+  } while((datalen > 0) && (ret == 1));
 #if INIT_DEBUG_MODE == true
   printf(SER_CYAN "CLM uploaded %ld/%d result: %ld\n" SER_RESET, cumulative_len, FIRMWARE_CLM_LEN, ret);
 #endif
@@ -937,7 +964,12 @@ void W4343WCard::postInitSettings() {
   ioctl_set_uint32("bus:txglom", 20, 0); // tx glomming off
   //ioctl_set_uint32("bus:rxglom", 20, 0); // rx glomming off
   ioctl_set_uint32("apsta", 20, 1); // apsta on
+//==============================================================================
+// Upload CLM.
+//==============================================================================
   uploadCLM();
+//==============================================================================
+
 #if INIT_DEBUG_MODE == true
   getCLMVersion();
 #endif
@@ -1216,12 +1248,20 @@ bool W4343WCard::wifiSetup(void) {
     printf(SER_RED "BAK_CHIP_CLOCK_CSR_REG returned 0x%02X\n" SER_RESET, readResponse);
     return false;
   }
-  // Validate and upload firmware 
+//==============================================================================
+// Validate and upload Firmware 
+//==============================================================================
   setBackplaneWindow(0x58000);
   cardCMD53_read(SD_FUNC_BAK, 0xEE80, data, 4);
+//==============================================================================
+
+//==============================================================================
+// Validate and upload NVRAM 
+//==============================================================================
   uploadFirmware(FIRMWARE_LEN, (uintptr_t)firmware_bin);
   size_t wifi_nvram_len = sizeof(wifi_nvram) - 1;
   uploadNVRAM(wifi_nvram_len, (uintptr_t)wifi_nvram);
+//==============================================================================
 
   // This prints the last 44 bytes of NVRAM upload. Comment out for now.
   // cardCMD53_read(SD_FUNC_BAK, 0xFFD4, data, 44);

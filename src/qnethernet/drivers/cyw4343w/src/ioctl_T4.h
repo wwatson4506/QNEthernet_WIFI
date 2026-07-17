@@ -1,10 +1,36 @@
+// CYW4343W SDIO IOCTL functions.
+//
+// Copyright (c) 2026, Warren Watson
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+// ===============================================================
+// = Used for testing with Dogbone06 CYW4343W board and T4.1/DB5 =
+// ===============================================================
 #ifndef IOCTL_T4H
 #define IOCTL_T4H
 
 #include <Arduino.h>
 #include "whd_wlioctl.h"
 
-// IOCTL commands
+//==============================================================================
+// IOCTL command defines.
+//==============================================================================
 #define IOCTL_UP                    2
 #define IOCTL_SET_SCAN_CHANNEL_TIME 0xB9
 
@@ -23,213 +49,123 @@
 #define DL_END				0x0004
 #define DL_TYPE_CLM		    2
 
-#define SDPCM_CHAN_CTRL     0       // SDPCM control channel
-#define SDPCM_CHAN_EVT      1       // SDPCM async event channel
-#define SDPCM_CHAN_DATA     2       // SDPCM data channel
+#define SDPCM_CHAN_CTRL     0   // SDPCM control channel
+#define SDPCM_CHAN_EVT      1   // SDPCM async event channel
+#define SDPCM_CHAN_DATA     2   // SDPCM data channel
 
 // WiFi bands
 #define WIFI_BAND_ANY       0
 #define WIFI_BAND_5GHZ      1
 #define WIFI_BAND_2_4GHZ    2
 
-typedef uint16_t wl_chanspec_t;  /**< Channel specified in uint16_t */
-#define MCSSET_LEN    16 /**< Maximum allowed mcs rate */
+#define WHD_MSG_IFNAME_MAX 16    // Max length of Interface name
 
+typedef uint16_t wl_chanspec_t;  // Channel specified in uint16_t
+#define MCSSET_LEN    16         // Maximum allowed mcs rate
+//==============================================================================
 
 #pragma pack(1)
 
-typedef struct {
-    int32_t num;
-    const char * str;
-} EVT_STR;
+//==============================================================================
+// WIFI IOCTL structs.
+//==============================================================================
 
+//==============================================================================
+// Data load struct (litte endian).
+//==============================================================================
 struct brcmf_dload_data_le {
-	uint16_t flag;
-	uint16_t dload_type;
-	uint32_t len;
-	uint32_t crc;
-	uint8_t data[1];
+  uint16_t flag;
+  uint16_t dload_type;
+  uint32_t len;
+  uint32_t crc;
+  uint8_t data[1];
 };
+//==============================================================================
 
+//==============================================================================
+// Data SSID struct (litte endian).
+//==============================================================================
 struct brcmf_ssid_le {
-	uint32_t SSID_len;
-	uint8_t SSID[SSID_MAXLEN];
+  uint32_t SSID_len;
+  uint8_t SSID[SSID_MAXLEN];
 };
+//==============================================================================
 
-struct brcmf_scan_params_le {
-    struct brcmf_ssid_le ssid_le;
-    uint8_t bssid[6];
-    int8_t  bss_type;
-    int8_t  scan_type;
-    int32_t nprobes;
-    int32_t active_time;
-    int32_t passive_time;
-    int32_t home_time;
-    uint16_t nchans;
-    uint16_t nssids;
-    uint16_t channel_list[1];   // channel list (not used)
-    //uint8_t  chans[14][2],
-    //         ssids[1][SSID_MAXLEN];
-};
-
-struct brcmf_scan_params_v2_le {
-	uint16_t version;		/* structure version */
-	uint16_t length;		/* structure length */
-	struct brcmf_ssid_le ssid_le;
-	uint8_t bssid[6];
-	int8_t bss_type;
-	uint8_t pad;
-	uint32_t scan_type;
-	int32_t nprobes;
-	int32_t active_time;
-    int32_t passive_time;
-    int32_t home_time;
-    uint16_t nchans;
-    uint16_t nssids;
-    uint8_t  chans[14][2],
-             ssids[1][SSID_MAXLEN];
-};
-
-#define WHD_MSG_IFNAME_MAX 16 /**< Max length of Interface name */
-
-/**
- * Structure to store ethernet header fields in event packets
- */
-typedef struct whd_event_eth_hdr
-{
-    uint16_t subtype;      /**< Vendor specific..32769 */
-    uint16_t length;       /**< Length of ethernet header*/
-    uint8_t version;       /**< Version is 0 */
-    uint8_t oui[3];        /**< Organizationally Unique Identifier */
-    uint16_t usr_subtype;  /**< User specific data */
-} whd_event_eth_hdr_t;
-
-/**
- *  Structure to store fields after ethernet header in event message
- */
-struct whd_event_msg
-{
-    uint16_t version;               /**< Version */
-    uint16_t flags;                 /**< see flags below */
-    uint32_t event_type;            /**< Event type indicating a response from firmware for IOCTLs/IOVARs sent */
-    uint32_t status;                /**< Status code corresponding to any event type */
-    uint32_t reason;                /**< Reason code associated with the event occurred */
-    uint32_t auth_type;             /**< WLC_E_AUTH: 802.11 AUTH request */
-    uint32_t datalen;               /**< Length of data in event message */
-    whd_mac_t addr;                 /**< Station address (if applicable) */
-    char ifname[WHD_MSG_IFNAME_MAX];               /**< name of the incoming packet interface */
-    uint8_t ifidx;                                 /**< destination OS i/f index */
-    uint8_t bsscfgidx;                             /**< source bsscfg index */
-};
-
-/**
- * Structure to store ethernet destination, source and ethertype in event packets
- */
-typedef struct whd_event_ether_header
-{
-    whd_mac_t destination_address; /**< Ethernet destination address */
-    whd_mac_t source_address;      /**< Ethernet source address */
-    uint16_t ethertype;            /**< Ethertype for identifying event packets */
-} whd_event_ether_header_t;
-
-/** @cond */
-typedef struct whd_event_msg whd_event_header_t;
-/** @endcond */
-
-/**
- * Event structure used by driver msgs
- */
-typedef struct whd_event
-{
-    whd_event_ether_header_t eth;    /**< Variable to store ethernet destination, source and ethertype in event packets */
-    whd_event_eth_hdr_t eth_evt_hdr; /**< Variable to store ethernet header fields in event message */
-    whd_event_header_t whd_event;    /**< Variable to store rest of the event packet fields after ethernet header */
-    /* data portion follows */
-} whd_event_t;
-
-// Event structures
+//==============================================================================
+// CYW4343x sdpcm header. Used at the beginning of all comms packets.
+//==============================================================================
 typedef struct {
-    whd_event_eth_hdr_t   hdr;
-    struct whd_event_msg  msg;
-    uint8_t data[1];
-} ETH_EVENT;
-
-typedef struct {
-    uint8_t pad[10];
-    whd_event_ether_header_t eth_hdr;
-    union {
-        ETH_EVENT event;
-        uint8_t data[1];
-    };
-} ETH_EVENT_FRAME;
-
-typedef struct {
-    uint8_t seq,      
-            chan,
-            nextlen,
-            hdrlen,
-            flow,
-            credit,
-            reserved[2];
+  uint8_t seq,      
+          chan,
+          nextlen,
+          hdrlen,
+          flow,
+          credit,
+          reserved[2];
 } sdpcm_sw_header;
+//==============================================================================
 
+//==============================================================================
+// IOCTL command header.
+//==============================================================================
 typedef struct {
-    sdpcm_sw_header sw_header;
-    uint32_t cmd;       // cdc_header
-    uint16_t outlen,
-             inlen;
-    uint32_t flags,
-             status;
-    uint8_t data[IOCTL_MAX_BLKLEN_T4];
+  sdpcm_sw_header sw_header;
+  uint32_t cmd;       // cdc_header
+  uint16_t outlen,
+           inlen;
+  uint32_t flags,
+           status;
+  uint8_t data[IOCTL_MAX_BLKLEN_T4];
 } IOCTL_CMD_T4;
+//==============================================================================
 
-// IOCTL header
+//==============================================================================
+// IOCTL glom header.
+//==============================================================================
 typedef struct {
-    uint32_t cmd;       // cdc_header
-    uint16_t outlen,
-             inlen;
-    uint32_t flags,
-             status;
-} IOCTL_HDR;
-
-typedef struct {
-    uint16_t len;
-    uint8_t  reserved1,
-             flags,
-             reserved2[2],
-             pad[2];
+  uint16_t len;
+  uint8_t  reserved1,
+           flags,
+           reserved2[2],
+           pad[2];
 } IOCTL_GLOM_HDR;
+//==============================================================================
 
+//==============================================================================
+// IOCTL glom command.
+//==============================================================================
 typedef struct {
     IOCTL_GLOM_HDR glom_hdr;
     IOCTL_CMD_T4  cmd;
 } IOCTL_GLOM_CMD;
+//==============================================================================
 
-typedef struct
-{
-    uint16_t len,           // sdpcm_header.frametag
-             notlen;
-    union 
-    {
-        IOCTL_CMD_T4 cmd;
-        IOCTL_GLOM_CMD glom_cmd;
+//==============================================================================
+// IOCTL message header. 
+//==============================================================================
+typedef struct {
+  uint16_t len,    // sdpcm_header.frametag
+           notlen;
+    union {
+      IOCTL_CMD_T4 cmd;
+      IOCTL_GLOM_CMD glom_cmd;
     };
 } IOCTL_MSG_T4;
+//==============================================================================
 
+//==============================================================================
+// SDPCM header version one. 
+//==============================================================================
 typedef struct {
     uint16_t        len,       // sdpcm_header.frametag
                     notlen;
     sdpcm_sw_header sw_header;
 } sdpcm_header_t;
+//==============================================================================
 
-// Escan result event (excluding 12-byte IOCTL header)
-typedef struct {
-    uint8_t pad[10];
-    whd_event_t event;
-    wl_escan_result_t escan;
-} escan_result;
-
-// SDPCM header
+//==============================================================================
+// SDPCM header version two. TODO: Try to replace this version with the above version.
+//==============================================================================
 typedef struct {
     uint16_t len,       // sdpcm_header.frametag
              notlen;
@@ -241,33 +177,40 @@ typedef struct {
              credit,
              reserved[2];
 } SDPCM_HDR;
+//==============================================================================
 
-// BDC header
+//==============================================================================
+// BDC header.
+//==============================================================================
 typedef struct {
-    uint8_t flags;
-    uint8_t priority;
-    uint8_t flags2;
-    uint8_t offset;
+  uint8_t flags;
+  uint8_t priority;
+  uint8_t flags2;
+  uint8_t offset;
 } BDC_HDR_T4;
+//==============================================================================
 
+//==============================================================================
 // IOCTL response with SDPCM header
 // (then an IOCTL header after some padding)
-typedef union
-{
-    SDPCM_HDR sdpcm;
-    uint8_t data[IOCTL_MAX_BLKLEN];
+//==============================================================================
+typedef union {
+  SDPCM_HDR sdpcm;
+  uint8_t data[IOCTL_MAX_BLKLEN];
 } IOCTL_RSP;
+//==============================================================================
 
+//==============================================================================
 // IOCTL command or response message
-typedef struct
-{
-    union 
-    {
-        IOCTL_CMD_T4 cmd;
-        IOCTL_RSP rsp;
-        uint8_t data[IOCTL_MAX_BLKLEN];
-    };
+//==============================================================================
+typedef struct {
+  union {
+    IOCTL_CMD_T4 cmd;
+    IOCTL_RSP rsp;
+    uint8_t data[IOCTL_MAX_BLKLEN];
+  };
 } IOCTL_MSG;
+//==============================================================================
 
 #pragma pack()
 

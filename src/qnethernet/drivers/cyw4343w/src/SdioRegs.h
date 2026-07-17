@@ -17,7 +17,9 @@
 #ifndef SdioRegs_h
 #define SdioRegs_h
 
+// =====================================================================
 //SD function numbers
+// =====================================================================
 #define SD_FUNC_BUS     0
 #define SD_FUNC_BAK     1
 #define SD_FUNC_RAD     2
@@ -26,20 +28,28 @@
 #define SD_FUNC_BAK_EN  0x02
 #define SD_FUNC_RAD_EN  0x04
 
+// =====================================================================
 //Read/write block sizes
+// =====================================================================
 #define SD_BUS_BLK_BYTES    32
 #define SD_BAK_BLK_BYTES    64
 #define SD_RAD_BLK_BYTES    512
 
+// =====================================================================
 //Read/write flags
+// =====================================================================
 #define SD_RD           0
 #define SD_WR           1
 
+// =====================================================================
 //Delays
+// =====================================================================
 #define SD_CLK_DELAY    1   // Clock on/off time in usec
 #define RSP_WAIT        20  // Number of clock cycles to wait for resp
 
+// =====================================================================
 // Bus config registers
+// =====================================================================
 #define BUS_IOEN_REG            0x002   // SDIOD_CCCR_IOEN          I/O enable
 #define BUS_IORDY_REG           0x003   // SDIOD_CCCR_IORDY         Ready indication
 #define BUS_INTEN_REG           0x004   // SDIOD_CCCR_INTEN
@@ -54,11 +64,15 @@
 #define BUS_BAK_BLKSIZE_REG     0x110   // SDIOD_CCCR_F1BLKSIZE_0   Backplane blocksize 
 #define BUS_RAD_BLKSIZE_REG     0x210   // SDIOD_CCCR_F2BLKSIZE_0   WiFi radio blocksize
 
+// =====================================================================
 // Backplane config registers
+// =====================================================================
 #define BAK_WIN_ADDR_REG        0x1000a // SDIO_BACKPLANE_ADDRESS_LOW Window addr 
 #define BAK_CHIP_CLOCK_CSR_REG  0x1000e // SDIO_CHIP_CLOCK_CSR      Chip clock ctrl 
 
+// =====================================================================
 // SDIO_CHIP_CLOCK_CSR bits
+// =====================================================================
 #define SBSDIO_HT_AVAIL            0x80
 #define SBSDIO_ALP_AVAIL           0x40 
 #define SBSDIO_FORCE_HW_CLKREQ_OFF 0x20
@@ -68,7 +82,9 @@
 #define SBSDIO_FORCE_HT            (uint32_t)0x02 // High throughput clock 
 #define SBSDIO_FORCE_ALP           0x01           // Active low-power clock 
 
+// =====================================================================
 // For OOB interrupts
+// =====================================================================
 #define SDIO_CCCR_BRCM_SEPINT_MASK 0x01  // BIT(0)
 #define SDIO_CCCR_BRCM_SEPINT_OE   0x02  // BIT(1)
 #define SDIO_CCCR_IEN_FUNC0 0x01  // BIT(0)
@@ -78,7 +94,9 @@
 #define BAK_PULLUP_REG          0x1000f // SDIO_PULL_UP             Pullups
 #define BAK_WAKEUP_REG          0x1001e // SDIO_WAKEUP_CTRL
 
+// =====================================================================
 // Silicon backplane
+// =====================================================================
 #define BAK_BASE_ADDR           0x18000000              // CHIPCOMMON_BASE_ADDRESS
                                                         //
 #define MAC_BASE_ADDR           (BAK_BASE_ADDR+0x1000)  // DOT11MAC_BASE_ADDRESS
@@ -110,10 +128,14 @@
 #define SRAM_RESETCTRL_REG      (SRAM_BASE_WRAP+0x800)  // +AI_RESETCTRL_OFFSET
 #define SRAM_RESETSTATUS_REG    (SRAM_BASE_WRAP+0x804)  // +AI_RESETSTATUS_OFFSET
 
+// =====================================================================
 // Save-restore
+// =====================================================================
 #define SR_CONTROL1             (BAK_BASE_ADDR+0x508)   // CHIPCOMMON_SR_CONTROL1
 
+// =====================================================================
 // Backplane window
+// =====================================================================
 #define SB_32BIT_WIN    0x8000
 #define SB_ADDR_MASK    0x7fff
 #define SB_WIN_MASK     (~SB_ADDR_MASK)
