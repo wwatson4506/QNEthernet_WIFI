@@ -59,7 +59,11 @@ This define in QNEthernet_opts.h switches betweeen the two:
   - Removed cyw43_ping.ino, ping.h and all references to ICMP and ARP usage.
   - Moved all scan code functions and defines from event.cpp and event.h to scan.cpp and scan.h.
   - Moved all join code functions and defines from event.cpp and event.h to join.cpp and join.h.
- 
+
+07-16-26:
+  - Finish removing un-used structs.
+  - Finish rearranging and optimizing ".h" and ".cpp" files.
+  - Now just waiting for new CYW43439 (1YN) WiFI shield so this driver can be adapted to it. 
 ### Again this is work in progress. Those with the other hardware and CYW4343W chip types at hand can do testing.
 ### Most of the Arduino style Ethernet library has been tested and works. This library is found at:
 https://github.com/wwatson4506/QNEthernet_WIFI_Examples
