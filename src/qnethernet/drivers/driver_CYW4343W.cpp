@@ -60,13 +60,6 @@ typedef enum {
 
 static enet_init_states_t s_initState = kInitStateStart;
 
-// Incoming MAC address hash-collision bookkeeping
-// Don't release bits that have had a collision. Track these here.
-static uint32_t s_collisionGALR = 0;
-static uint32_t s_collisionGAUR = 0;
-static uint32_t s_collisionIALR = 0;
-static uint32_t s_collisionIAUR = 0;
-
 //==============================================================================
 // Get System MAC address.
 //==============================================================================
@@ -232,73 +225,14 @@ void get_link_info(struct LinkInfo* const li) {
   *li = s_linkInfo;
 }
 
+
 #if !QNETHERNET_ENABLE_PROMISCUOUS_MODE
-// CRC-32 routine for computing the 4-byte FCS for multicast lookup. The initial
-// value will be zero.
-ATTRIBUTE_NODISCARD
-static uint32_t crc32(const void* const data, const size_t len) {
-  // https://create.stephan-brumme.com/crc32/#fastest-bitwise-crc32
 
-  uint32_t crc = 0;  // Initial value
-  const uint8_t* pData = static_cast<const uint8_t*>(data);
-  size_t lenRem = len;
-
-  crc = ~crc;
-  while (lenRem--) {
-    crc ^= *(pData++);
-    for (int j = 0; j < 8; ++j) {
-      crc = (crc >> 1) ^ (-(crc & 0x01) & 0xEDB88320);
-    }
-  }
-  return crc;
-}
-
-bool set_incoming_mac_address_allowed(const uint8_t mac[ETH_HWADDR_LEN],
-                                             const bool allow) {
-  if (mac == NULL) {
-    return false;
-  }
-
-  const uint32_t crc = (crc32(mac, ETH_HWADDR_LEN) >> 26) & 0x3f;
-  const uint32_t value = uint32_t{1} << (crc & 0x1f);
-
-  // Choose which locations
-
-  const bool isGroup = (mac[0] & 0x01) != 0;
-  volatile uint32_t* reg;
-  uint32_t* collision;
-
-  if (crc < 0x20) {
-    if (isGroup) {
-      reg = &ENET_GALR;
-      collision = &s_collisionGALR;
-    } else {
-      reg = &ENET_IALR;
-      collision = &s_collisionIALR;
-    }
-  } else {
-    if (isGroup) {  // Group
-      reg = &ENET_GAUR;
-      collision = &s_collisionGAUR;
-    } else {
-      reg = &ENET_IAUR;
-      collision = &s_collisionIAUR;
-    }
-  }
-
-  if (allow) {
-    if ((*reg & value) != 0) {
-      *collision |= value;
-    } else {
-      *reg |= value;
-    }
-  } else {
-    // Keep collided bits set
-    *reg &= ~value | *collision;
-    return ((*collision & value) == 0);  // False if can't remove
-  }
-
-  return true;
+//==============================================================================
+// Currently Unused.
+//==============================================================================
+bool set_incoming_mac_address_allowed(const uint8_t mac[ETH_HWADDR_LEN],bool allow) {
+  return false;
 }
 
 #endif
