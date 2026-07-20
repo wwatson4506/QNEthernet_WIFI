@@ -67,7 +67,11 @@
 // =====================================================================
 // Backplane config registers
 // =====================================================================
+#define BAK_WIN_ADDR_WATERMARK  0x10008 // SDIO_BACKPLANE_ADDRESS_LOW Window addr 
 #define BAK_WIN_ADDR_REG        0x1000a // SDIO_BACKPLANE_ADDRESS_LOW Window addr 
+#define BAK_WIN_ADDR_REG_LOW    0x1000a // SDIO_BACKPLANE_ADDRESS_LOW Window addr 
+#define BAK_WIN_ADDR_REG_MID    0x1000b // SDIO_BACKPLANE_ADDRESS_MID Window addr 
+#define BAK_WIN_ADDR_REG_HIGH   0x1000v // SDIO_BACKPLANE_ADDRESS_HIGH Window addr 
 #define BAK_CHIP_CLOCK_CSR_REG  0x1000e // SDIO_CHIP_CLOCK_CSR      Chip clock ctrl 
 
 // =====================================================================
