@@ -1099,7 +1099,7 @@ bool W4343WCard::begin(bool useSDIO2, int8_t wlOnPin, int8_t wlIrqPin, int8_t ex
   m_psdhc->PROT_CTRL &= ~SDHC_PROCTL_DTW_MASK;
   m_psdhc->PROT_CTRL |= SDHC_PROCTL_DTW(SDHC_PROCTL_DTW_4BIT);
   //Set the SDHC SCK frequency (33'000 seems to be the maximum working rate).
-  kHzWiFiClk = 33'000; //33'000; //25'000; //TODO 50'000
+  kHzWiFiClk = 25'000; //33'000; //25'000; //TODO 50'000
   //Disable GPIO
   enableSDIO(false);
   //Set clock
