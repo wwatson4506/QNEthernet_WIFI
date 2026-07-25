@@ -1,4 +1,5 @@
 
+//#include "driver_CYW4343W.h"
 
 #include "qnethernet/lwip_driver.h"
 
@@ -6,38 +7,79 @@
 
 #pragma message("Using CYW4343W QNEthernet Driver")
 
-// C++ includes
-#include <atomic>
-#include <cstring>
-
-#include <core_pins.h>
-#include <imxrt.h>
-#include <util/atomic.h>
-
+#include "lwip/arch.h"
 #include "lwip/debug.h"
 #include "lwip/err.h"
 #include "lwip/stats.h"
-
+#include "lwip/etharp.h"
 #include "qnethernet/internal/macro_funcs.h"
 #include "qnethernet/platforms/pgmspace.h"
 
 #include "cyw4343w/src/cyw43_T4_SDIO.h"
 #include "cyw4343w/src/join.h"
-#include "../src/secrets.h"
+#include "cyw4343w/src/secrets.h"
 
-namespace qindesign {
-namespace network {
-namespace driver {
+void cywdump(unsigned char *memory, unsigned int len);
+void waitMyInput(void);
 
-Join qnjoin;
-W4343WCard WIFIcard;
+W4343WCard wifiCard;
 Event evt;
 
 static int s_checkLinkStatusState = 0;
 uint32_t poll_ticks;
+#define EVENT_POLL_USEC    100000 //100000
+
+// Defines the control and status region of the receive buffer descriptor.
+enum enet_rx_bd_control_status {
+  kEnetRxBdEmpty           = 0x8000U,  // Empty bit
+  kEnetRxBdRxSoftOwner1    = 0x4000U,  // Receive software ownership
+  kEnetRxBdWrap            = 0x2000U,  // Wrap buffer descriptor
+  kEnetRxBdRxSoftOwner2    = 0x1000U,  // Receive software ownership
+  kEnetRxBdLast            = 0x0800U,  // Last BD in the frame (L bit)
+  kEnetRxBdMiss            = 0x0100U,  // Miss; in promiscuous mode; needs L
+  kEnetRxBdBroadcast       = 0x0080U,  // Broadcast
+  kEnetRxBdMulticast       = 0x0040U,  // Multicast
+  kEnetRxBdLengthViolation = 0x0020U,  // Receive length violation; needs L
+  kEnetRxBdNonOctet        = 0x0010U,  // Receive non-octet aligned frame; needs L
+  kEnetRxBdCrc             = 0x0004U,  // Receive CRC or frame error; needs L
+  kEnetRxBdOverrun         = 0x0002U,  // Receive FIFO overrun; needs L
+  kEnetRxBdTrunc           = 0x0001U,  // Frame is truncated
+};
+
+// Defines the control status of the transmit buffer descriptor.
+enum enet_tx_bd_control_status {
+  kEnetTxBdReady        = 0x8000U,  // Ready bit
+  kEnetTxBdTxSoftOwner1 = 0x4000U,  // Transmit software ownership
+  kEnetTxBdWrap         = 0x2000U,  // Wrap buffer descriptor
+  kEnetTxBdTxSoftOwner2 = 0x1000U,  // Transmit software ownership
+  kEnetTxBdLast         = 0x0800U,  // Last BD in the frame (L bit)
+  kEnetTxBdTransmitCrc  = 0x0400U,  // Transmit CRC; needs L
+};
+
+typedef struct {
+  uint16_t length;
+  uint16_t status;
+  void*    buffer;
+  uint16_t extend0;
+  uint16_t extend1;
+  uint16_t checksum;
+  uint8_t  prototype;
+  uint8_t  headerlen;
+  uint16_t unused0;
+  uint16_t extend2;
+  uint32_t timestamp;
+  uint16_t unused1;
+  uint16_t unused2;
+  uint16_t unused3;
+  uint16_t unused4;
+} enetbufferdesc_t;
+
+
 static struct LinkInfo s_linkInfo;
 
-FLASHMEM void get_capabilities(DriverCapabilities* const dc) {
+extern "C" {
+
+FLASHMEM void driver_get_capabilities(struct DriverCapabilities* const dc) {
   dc->isMACSettable                = false;
   dc->isLinkStateDetectable        = true;
   dc->isLinkSpeedDetectable        = false;
@@ -60,35 +102,27 @@ typedef enum {
 
 static enet_init_states_t s_initState = kInitStateStart;
 
-//==============================================================================
-// Get System MAC address.
-//==============================================================================
-void get_system_mac(uint8_t mac[ETH_HWADDR_LEN]) {
-  WIFIcard.getMACAddress((uint8_t *)mac);
+void driver_get_system_mac(uint8_t mac[ETH_HWADDR_LEN]) {
+  printf("driver_get_system_mac\n");
+  wifiCard.getMACAddress((uint8_t *)mac);
 }
 
-//==============================================================================
-// Get current MAC address.
-//==============================================================================
-bool get_mac(uint8_t mac[ETH_HWADDR_LEN]) {
-  if(qnjoin.join_check() != JOIN_OK) return false;
-  WIFIcard.getMACAddress((uint8_t *)mac);
+bool driver_get_mac(uint8_t mac[ETH_HWADDR_LEN]) {
+//  printf("driver_get_mac\n");
+  if(join_check() != JOIN_OK) return false;
+  wifiCard.getMACAddress((uint8_t *)mac);
   return true;
 }
 
-//==============================================================================
-// Set MAC address (Not resetable).
-//==============================================================================
-bool set_mac(const uint8_t mac[ETH_HWADDR_LEN]) {
-//  if(qnjoin.join_check() != JOIN_OK) return false;
-//  WIFIcard.getMACAddress((uint8_t *)mac);
+bool driver_set_mac(const uint8_t mac[ETH_HWADDR_LEN]) {
+//  printf("driver_set_mac\n");
+  if(join_check() != JOIN_OK) return false;
+  wifiCard.getMACAddress((uint8_t *)mac);
   return true;
 }
 
-//==============================================================================
-// Has Hardware.
-//==============================================================================
-bool has_hardware() {
+bool driver_has_hardware() {
+//  printf("\ndriver_has_hardware\n");
   switch (s_initState) {
     case kInitStateHasHardware:
       ATTRIBUTE_FALLTHROUGH;
@@ -101,48 +135,63 @@ bool has_hardware() {
     default:
       break;
   }
-  // Init CYW4343W WIFI hardware and join network.
-  WIFIinit(MY_SSID, MY_PASSPHRASE, SECURITY);
-  return true;
-}
-
-
-//==============================================================================
-// UNUSED.
-//==============================================================================
-void set_chip_select_pin(int pin) {
-	(void)pin;
-}
-
-//==============================================================================
-// Previously initialized. Marked initialized here.
-//==============================================================================
-bool init(void) {
-  if (s_initState == kInitStateInitialized) {
-    return true;
+  //////////////////////////////////////////
+  //Begin parameters: 
+  //SDIO1 (false), SDIO2 (true)
+  //WL_REG_ON pin 
+  //WL_IRQ pin (-1 to ignore)
+  //EXT_LPO pin (optional, -1 to ignore)
+  //////////////////////////////////////////
+  if(wifiCard.begin(true, 33, 34, -1) == true) { 
+    wifiCard.wifiSetup();
+    return (s_initState != kInitStateNoHardware);
   } else {
-    s_initState = kInitStateInitialized;
-    return true;
+    printf("Initialization: FAILED! \n");
+    return (s_initState = kInitStateNoHardware);
   }
 }
 
-//==============================================================================
-// Leave network.
-//==============================================================================
-void deinit() {
-  qnjoin.join_stop();
+void driver_set_chip_select_pin(int pin) {}
+
+bool driver_init(void) {
+//  printf("driver_init\n");
+  if (s_initState == kInitStateInitialized) {
+    return true;
+  }
+  wifiCard.postInitSettings();
+  // Add our event handler to the array of event handlers.
+  evt.add_event_handler(join_event_handler);
+  delayMicroseconds(1000);
+  ustimeout(&poll_ticks, 0);
+
+  // Use "secrets.h" to set MY_SSID, MY_PASSPHRASE, SECURITY.
+  if(!join_start(MY_SSID, MY_PASSPHRASE, SECURITY)) {
+    printf("Error: can't start network join\n");
+    s_initState = kInitStateNoHardware;
+    return false;
+  }
+  // Keep polling until link and join happens.
+  while((link_check() != LINK_OK) && (join_check() != JOIN_OK)) {
+    evt.pollEvents();
+    join_state_poll(MY_SSID, MY_PASSPHRASE, SECURITY);
+  }
+  s_initState = kInitStateInitialized;
+  printf("Initialization Done\n");
+  return true;
 }
 
-//==============================================================================
-// driver_proc_input().
-//==============================================================================
-struct pbuf* proc_input(struct netif *netif, int counter) {
+void driver_deinit() {
+  printf("driver_deinit\n");
+  join_stop();
+}
+
+// driver_proc_input() NOT WORKING with ping!!!!
+struct pbuf* driver_proc_input(struct netif *netif, int counter) {
   // Finish any pending link and join status check
   if(netif_is_link_up(netif) == 0) return NULL; 
-  sdpcm_header_t hp; // Get capy of WIFI header struct.
+  sdpcm_header_t hp;
   uint8_t bf[MAX_FRAME_LEN];
   uint32_t data_len;
-  // Check for an available event frame.
   if((data_len = evt.ioctl_get_event(&hp, bf, MAX_FRAME_LEN)) > 0) {
     struct pbuf *p = pbuf_alloc(PBUF_RAW, data_len+ETH_PAD_SIZE, PBUF_RAM);
     if (p == NULL) {
@@ -152,100 +201,172 @@ struct pbuf* proc_input(struct netif *netif, int counter) {
     p->len = p->tot_len = data_len+ETH_PAD_SIZE+ETH_PAD_SIZE;
     LWIP_ASSERT("Expected space for pbuf fill",
       pbuf_take(p, (uint8_t *)bf+10, p->tot_len) == ERR_OK);
+//printf("driver_proc_input()\n");
+//cywdump((uint8_t *)p->payload,p->tot_len);
     return p;
   }
   return NULL;
 }
 
-//==============================================================================
-// Poll network.
-//==============================================================================
-void poll(struct netif *netif) {
-  // Get any events, poll the joining state machine.
-  if(WIFIcard.ustimeout(&poll_ticks, EVENT_POLL_USEC)) {
-    evt.pollEvents(); // Check for an event frame.
-    // Poll join status. Try to re-join if link is lost.
-    qnjoin.join_state_poll(MY_SSID, MY_PASSPHRASE, SECURITY);
-    WIFIcard.ustimeout(&poll_ticks, 0); // Clear Polling timout counter.
+void driver_poll(struct netif *netif) {
+  // Get any events, poll the joining state machine
+  if(ustimeout(&poll_ticks, EVENT_POLL_USEC)) {
+//printf("driver_poll()\n");
+    evt.pollEvents();
+    join_state_poll(MY_SSID, MY_PASSPHRASE, SECURITY);
+    ustimeout(&poll_ticks, 0);
   }
-  // Check if link is up.
-  uint8_t link_state = qnjoin.join_check() ? LINK_UP : LINK_DOWN;
-  if (netif_is_link_up(netif) != link_state) {
-    if (link_state) {
+  uint8_t link_up = join_check() ? 1 : 0;
+  if (netif_is_link_up(netif) != link_up) {
+    if (link_up) {
       printf("Setting link up\n");
       netif_set_link_up(netif);
-      s_checkLinkStatusState = link_state; //
+      s_checkLinkStatusState = link_up;
     } else {
       printf("Setting link down\n");
       netif_set_link_down(netif);
-      s_checkLinkStatusState = link_state;
+      s_checkLinkStatusState = link_up;
     }
   }
 }
 
-//==============================================================================
-// 
-//==============================================================================
-err_t output(struct pbuf *p) {
+err_t driver_output(struct pbuf *p) {
+//printf("driver_output()\n");
+//cywdump((uint8_t *)p->payload,128);  
+
   uint8_t *buffer;
-  // Create a packet buffer.
   buffer = (uint8_t *)malloc(p->tot_len*sizeof(uint8_t));
-  // Fill buffer with packet info.
+
   const uint16_t copied = pbuf_copy_partial(p, buffer, p->tot_len, 0);
   if (copied != p->tot_len) {
     return ERR_BUF;
   }
-  // Transmit buffer.
   evt.event_net_tx(buffer, copied + ETH_PAD_SIZE);
-  free(buffer);  // Free buffer mem.
+//  evt.event_net_tx(p->payload, copied + ETH_PAD_SIZE);
+
+//cywdump((uint8_t *)p->payload,copied);  
+//cywdump((uint8_t *)buffer,copied);  
+//waitMyInput();
+  free(buffer);
   return ERR_OK;
 }
 
 #if QNETHERNET_ENABLE_RAW_FRAME_SUPPORT
-//==============================================================================
-// Same as output.
-//==============================================================================
-bool output_frame(const void *frame, size_t len) {
+bool driver_output_frame(const void *frame, size_t len) {
+//  printf("driver_output_frame\n");
+
   if (len > (UINT16_MAX - ETH_PAD_SIZE)) {
     return false;
   }
+
   uint8_t *buffer;
   buffer = (uint8_t *)malloc(len*sizeof(uint8_t));
+
   (void)memcpy((uint8_t*)buffer + ETH_PAD_SIZE, frame, len);
   evt.event_net_tx(buffer, len + ETH_PAD_SIZE);
+
   free(buffer);
+
   return true;
 }
 #endif
 
-//==============================================================================
-// Basic, is link up or down?
-//==============================================================================
-void get_link_info(struct LinkInfo* const li) {
+void driver_get_link_info(struct LinkInfo* const li) {
   *li = s_linkInfo;
+}
+
+size_t driver_get_mtu() {
+//  printf("driver_get_mtu()\n");
+  return MTU;
+}
+
+size_t driver_get_max_frame_len() {
+//  printf("driver_get_max_frame_len\n");
+  return 1580 - 44;
+}
+
+bool driver_set_incoming_mac_address_allowed(const uint8_t mac[ETH_HWADDR_LEN],
+                                             bool allow) {
+//  printf("driver_set_incoming_address_allowed()\n");
+  return false;
 }
 
 
 #if !QNETHERNET_ENABLE_PROMISCUOUS_MODE
+bool driver_set_mac_address_allowed(const uint8_t mac[ETH_HWADDR_LEN], bool allow) {
+//  printf("driver_set_mac_address_allowed\n");
+  return false;
+}
+#endif
 
-//==============================================================================
-// Currently Unused.
-//==============================================================================
-bool set_incoming_mac_address_allowed(const uint8_t mac[ETH_HWADDR_LEN],bool allow) {
+// these functions don't seem to be used right now...
+bool driver_is_unknown() {
+//  printf("driver_is_unknown\n");
+  return false;
+}
+	 
+bool driver_is_link_state_detectable() {
+//  printf("driver_is_link_state_detectable\n");
+  return true;
+}
+
+int driver_link_speed() {
+//  printf("driver_link_speed\n");
+	return 0;
+}
+
+bool driver_link_is_full_duplex() {
+//  printf("driver_link_is_full_duplex\n");
+  return true;
+}
+
+bool driver_link_is_crossover() {
+//  printf("driver_link_is_crossover\n");
   return false;
 }
 
-#endif
+} // extern "C"
 
-//==============================================================================
-// Start at begin().
-//==============================================================================
-bool is_unknown() {
-  return s_initState == kInitStateStart;;
+// Simple wait for input routine.
+void waitMyInput()
+{
+  Serial.println("Press anykey to continue...");
+  while (Serial.read() == -1) ;
+  while (Serial.read() != -1) ;
 }
 
-}  // namespace driver
-}  // namespace network
-}  // namespace qindesign
+// Simple hex dump routine.
+void cywdump(unsigned char *memory, unsigned int len)
+{
+   	unsigned int	i=0, j=0;
+	unsigned char	c=0;
+
+//	printf("                     (FLASH) MEMORY CONTENTS");
+	Serial.printf("\n\rADDR          00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F");
+	Serial.printf("\n\r-------------------------------------------------------------\n\r");
+
+
+	for(i = 0; i <= (len-1); i+=16) {
+//		phex16((i + memory));
+		Serial.printf("%8.8x",(unsigned int)(i + memory));
+		Serial.printf("      ");
+		for(j = 0; j < 16; j++) {
+			c = memory[i+j];
+			Serial.printf("%2.2x",c);
+			Serial.printf(" ");
+		}
+		Serial.printf("  ");
+		for(j = 0; j < 16; j++) {
+			c = memory[i+j];
+			if(c > 31 && c < 127)
+				Serial.printf("%c",c);
+			else
+				Serial.printf(".");
+		}
+//		_delay_ms(10);
+		Serial.printf("\n");
+	}
+
+}
 
 #endif

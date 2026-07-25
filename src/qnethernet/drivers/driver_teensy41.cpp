@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: (c) 2021-2026 Shawn Silverman <shawn@pobox.com>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// driver_teensy41.cpp contains the Teensy 4.1 Ethernet interface implementation.
+// driver_teensy41.c contains the Teensy 4.1 Ethernet interface implementation.
 // Based on code from manitou48 and others:
 // https://github.com/PaulStoffregen/teensy41_ethernet
 // This file is part of the QNEthernet library.
@@ -29,10 +29,6 @@
 
 // [PHY Datasheet](https://www.pjrc.com/teensy/dp83825i.pdf)
 // [i.MX RT1062 Manual](https://www.pjrc.com/teensy/IMXRT1060RM_rev3.pdf)
-
-namespace qindesign {
-namespace network {
-namespace driver {
 
 // --------------------------------------------------------------------------
 //  Defines
@@ -272,9 +268,9 @@ typedef struct {
   void*    buffer;
   uint16_t extend0;
   uint16_t extend1;
-  uint16_t checksum;   // Rx
-  uint8_t  prototype;  // Rx
-  uint8_t  headerlen;  // Rx
+  uint16_t checksum;
+  uint8_t  prototype;
+  uint8_t  headerlen;
   uint16_t unused0;
   uint16_t extend2;
   uint32_t timestamp;
@@ -310,7 +306,7 @@ static enet_init_states_t s_initState = kInitStateStart;
 
 // PHY status, polled
 static int s_checkLinkStatusState = 0;
-static LinkInfo s_linkInfo;
+static struct LinkInfo s_linkInfo;
 
 // Notification data
 static bool s_manualLinkState = false;  // True for sticky
@@ -826,7 +822,9 @@ static inline int check_link_status(struct netif* const netif,
 //  Driver Interface
 // --------------------------------------------------------------------------
 
-FLASHMEM void get_capabilities(DriverCapabilities* const dc) {
+extern "C" {
+
+FLASHMEM void driver_get_capabilities(struct DriverCapabilities* const dc) {
   dc->isMACSettable                = true;
   dc->isLinkStateDetectable        = true;
   dc->isLinkSpeedDetectable        = true;
@@ -839,19 +837,17 @@ FLASHMEM void get_capabilities(DriverCapabilities* const dc) {
   dc->isPHYResettable              = true;
 }
 
-bool is_unknown() {
+bool driver_is_unknown() {
   return s_initState == kInitStateStart;
 }
 
-extern "C" {
 void qnethernet_hal_get_system_mac_address(uint8_t mac[ETH_HWADDR_LEN]);
-}  // extern "C"
 
-void get_system_mac(uint8_t mac[ETH_HWADDR_LEN]) {
+void driver_get_system_mac(uint8_t mac[ETH_HWADDR_LEN]) {
   qnethernet_hal_get_system_mac_address(mac);
 }
 
-bool get_mac(uint8_t mac[ETH_HWADDR_LEN]) {
+bool driver_get_mac(uint8_t mac[ETH_HWADDR_LEN]) {
   // Don't do anything if the Ethernet clock isn't running because register
   // access will freeze the machine
   if ((CCM_CCGR1 & CCM_CCGR1_ENET(CCM_CCGR_ON)) == 0) {
@@ -870,7 +866,7 @@ bool get_mac(uint8_t mac[ETH_HWADDR_LEN]) {
   return true;
 }
 
-bool set_mac(const uint8_t mac[ETH_HWADDR_LEN]) {
+bool driver_set_mac(const uint8_t mac[ETH_HWADDR_LEN]) {
   // Don't do anything if the Ethernet clock isn't running because register
   // access will freeze the machine
   if ((CCM_CCGR1 & CCM_CCGR1_ENET(CCM_CCGR_ON)) == 0) {
@@ -887,7 +883,7 @@ bool set_mac(const uint8_t mac[ETH_HWADDR_LEN]) {
   return true;
 }
 
-bool has_hardware() {
+bool driver_has_hardware() {
   switch (s_initState) {
     case kInitStateHasHardware:
       ATTRIBUTE_FALLTHROUGH;
@@ -904,13 +900,13 @@ bool has_hardware() {
   return (s_initState != kInitStateNoHardware);
 }
 
-void set_chip_select_pin(const int pin) {
+void driver_set_chip_select_pin(const int pin) {
   (void)pin;
 }
 
 // Initializes the PHY and Ethernet interface. This sets the init state and
 // returns whether the initialization was successful.
-FLASHMEM bool init() {
+FLASHMEM bool driver_init() {
   if (s_initState == kInitStateInitialized) {
     return true;
   }
@@ -941,13 +937,9 @@ FLASHMEM bool init() {
   for (int i = 0; i < TX_SIZE; ++i) {
     s_txRing[i].buffer  = &s_txBufs[i * BUF_SIZE];
     s_txRing[i].status  = kEnetTxBdTransmitCrc;
-    s_txRing[i].extend1 = 0
-                          | kEnetTxBdTxInterrupt
-#if !QNETHERNET_ENABLE_RAW_FRAME_SUPPORT
-                          | kEnetTxBdProtChecksum
-                          | kEnetTxBdIpHdrChecksum
-#endif  // !QNETHERNET_ENABLE_RAW_FRAME_SUPPORT
-                          ;
+    s_txRing[i].extend1 = kEnetTxBdTxInterrupt  |
+                          kEnetTxBdProtChecksum |
+                          kEnetTxBdIpHdrChecksum;
   }
   s_txRing[TX_SIZE - 1].status |= kEnetTxBdWrap;
 
@@ -966,9 +958,7 @@ FLASHMEM bool init() {
 #endif  // QNETHERNET_ENABLE_PROMISCUOUS_MODE
              | ENET_RCR_MII_MODE;
   ENET_TCR = 0
-#if !QNETHERNET_ENABLE_RAW_FRAME_SUPPORT
              | ENET_TCR_ADDINS     // Overwrite with programmed MAC address
-#endif  // !QNETHERNET_ENABLE_RAW_FRAME_SUPPORT
              | ENET_TCR_ADDSEL(0)
              // | ENET_TCR_RFC_PAUSE
              // | ENET_TCR_TFC_PAUSE
@@ -1054,7 +1044,7 @@ FLASHMEM bool init() {
 
 void unused_interrupt_vector();  // startup.c
 
-FLASHMEM void deinit() {
+FLASHMEM void driver_deinit() {
   // Something about stopping Ethernet and the PHY kills performance if Ethernet
   // is restarted after calling end(), so gate the following two blocks with a
   // macro for now
@@ -1098,7 +1088,7 @@ FLASHMEM void deinit() {
 #endif  // QNETHERNET_INTERNAL_END_STOPS_ALL
 }
 
-struct pbuf* proc_input(struct netif* const netif, const int counter) {
+struct pbuf* driver_proc_input(struct netif* const netif, const int counter) {
   // Finish any pending link status check
   if (s_checkLinkStatusState != 0) {
     s_checkLinkStatusState = check_link_status(netif, s_checkLinkStatusState);
@@ -1120,11 +1110,11 @@ struct pbuf* proc_input(struct netif* const netif, const int counter) {
   return low_level_input(pBD);
 }
 
-void poll(struct netif* const netif) {
+void driver_poll(struct netif* const netif) {
   s_checkLinkStatusState = check_link_status(netif, s_checkLinkStatusState);
 }
 
-void get_link_info(LinkInfo* const li) {
+void driver_get_link_info(struct LinkInfo* const li) {
   *li = s_linkInfo;
 }
 
@@ -1133,7 +1123,7 @@ void get_link_info(LinkInfo* const li) {
 //
 // Note that the speed and duplex mode can't be changed if auto-negotiation
 // is enabled.
-bool set_link(const LinkSettings* const ls) {
+bool driver_set_link(const struct LinkSettings* const ls) {
   switch (s_initState) {
     case kInitStatePHYInitialized:
       ATTRIBUTE_FALLTHROUGH;
@@ -1169,10 +1159,9 @@ bool set_link(const LinkSettings* const ls) {
 }
 
 // Outputs data from the MAC.
-err_t output(struct pbuf* const p) {
+err_t driver_output(struct pbuf* const p) {
   // Note: The pbuf already contains the padding (ETH_PAD_SIZE)
   volatile enetbufferdesc_t* const pBD = get_bufdesc();
-
   // No need to check for NULL:
   // if (pBD == NULL) {
   //   LINK_STATS_INC(link.memerr);
@@ -1194,7 +1183,7 @@ err_t output(struct pbuf* const p) {
 }
 
 #if QNETHERNET_ENABLE_RAW_FRAME_SUPPORT
-bool output_frame(const void* const frame, const size_t len) {
+bool driver_output_frame(const void* const frame, const size_t len) {
   if (s_initState != kInitStateInitialized) {
     return false;
   }
@@ -1203,7 +1192,6 @@ bool output_frame(const void* const frame, const size_t len) {
   }
 
   volatile enetbufferdesc_t* const pBD = get_bufdesc();
-
   // No need to check for NULL:
   // if (pBD == NULL) {
   //   return false;
@@ -1246,7 +1234,7 @@ static uint32_t crc32(const void* const data, const size_t len) {
   return crc;
 }
 
-bool set_incoming_mac_address_allowed(const uint8_t mac[ETH_HWADDR_LEN],
+bool driver_set_incoming_mac_address_allowed(const uint8_t mac[ETH_HWADDR_LEN],
                                              const bool allow) {
   if (mac == NULL) {
     return false;
@@ -1300,7 +1288,7 @@ bool set_incoming_mac_address_allowed(const uint8_t mac[ETH_HWADDR_LEN],
 //  Notifications from Upper Layers
 // --------------------------------------------------------------------------
 
-void notify_manual_link_state(const bool flag) {
+void driver_notify_manual_link_state(const bool flag) {
   s_manualLinkState = flag;
 }
 
@@ -1308,11 +1296,11 @@ void notify_manual_link_state(const bool flag) {
 //  Link Functions
 // --------------------------------------------------------------------------
 
-void restart_auto_negotiation() {
+void driver_restart_auto_negotiation() {
   mdio_write(PHY_BMCR, mdio_read(PHY_BMCR) | PHY_BMCR_RESTART_AUTO_NEG);
 }
 
-void reset_phy() {
+void driver_reset_phy() {
   switch (s_initState) {
     case kInitStatePHYInitialized:
       ATTRIBUTE_FALLTHROUGH;
@@ -1331,8 +1319,6 @@ void reset_phy() {
   mdio_write(PHY_RCSR, PHY_RCSR_VALUE);
 }
 
-}  // namespace driver
-}  // namespace network
-}  // namespace qindesign
+}  // extern "C"
 
 #endif  // QNETHERNET_INTERNAL_DRIVER_TEENSY41

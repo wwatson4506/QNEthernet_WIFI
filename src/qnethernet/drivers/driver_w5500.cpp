@@ -50,10 +50,6 @@
 #define DIGITAL_WRITE digitalWrite
 #endif
 
-namespace qindesign {
-namespace network {
-namespace driver {
-
 // --------------------------------------------------------------------------
 //  Types
 // --------------------------------------------------------------------------
@@ -443,9 +439,8 @@ FLASHMEM static bool soft_reset() {
   return false;
 }
 
-// Resets the PHY. This is the internal version that the driver's
-// reset_phy() calls.
-FLASHMEM static void internal_reset_phy() {
+// Resets the PHY.
+FLASHMEM static void reset_phy() {
   uint8_t r = *kPHYCFGR;
 
   // Clear the RST bit
@@ -506,7 +501,7 @@ FLASHMEM static void low_level_init() {
                                   phycfg::kOPMD |  // Software configures
                                   (0x07 << 3));
       // ~RST, OPMD in software, OPMDC(3)=All, XXX
-  internal_reset_phy();
+  reset_phy();
 
   // Open a MACRAW socket
   // Use 16k buffers
@@ -666,7 +661,9 @@ static void check_link_status(struct netif* const netif) {
 //  Driver Interface
 // --------------------------------------------------------------------------
 
-FLASHMEM void get_capabilities(DriverCapabilities* const dc) {
+extern "C" {
+
+FLASHMEM void driver_get_capabilities(struct DriverCapabilities* const dc) {
   dc->isMACSettable                = true;
   dc->isLinkStateDetectable        = true;
   dc->isLinkSpeedDetectable        = true;
@@ -679,19 +676,17 @@ FLASHMEM void get_capabilities(DriverCapabilities* const dc) {
   dc->isPHYResettable              = true;
 }
 
-bool is_unknown() {
+bool driver_is_unknown() {
   return s_initState == EnetInitStates::kStart;
 }
 
-extern "C" {
 void qnethernet_hal_get_system_mac_address(uint8_t mac[ETH_HWADDR_LEN]);
-}  // extern "C"
 
-void get_system_mac(uint8_t mac[ETH_HWADDR_LEN]) {
+void driver_get_system_mac(uint8_t mac[ETH_HWADDR_LEN]) {
   qnethernet_hal_get_system_mac_address(mac);
 }
 
-bool get_mac(uint8_t mac[ETH_HWADDR_LEN]) {
+bool driver_get_mac(uint8_t mac[ETH_HWADDR_LEN]) {
   switch (s_initState) {
     case EnetInitStates::kHardwareInitialized:
       ATTRIBUTE_FALLTHROUGH;
@@ -712,7 +707,7 @@ bool get_mac(uint8_t mac[ETH_HWADDR_LEN]) {
   return true;
 }
 
-bool set_mac(const uint8_t mac[ETH_HWADDR_LEN]) {
+bool driver_set_mac(const uint8_t mac[ETH_HWADDR_LEN]) {
   switch (s_initState) {
     case EnetInitStates::kHardwareInitialized:
       ATTRIBUTE_FALLTHROUGH;
@@ -730,7 +725,7 @@ bool set_mac(const uint8_t mac[ETH_HWADDR_LEN]) {
   return true;
 }
 
-bool has_hardware() {
+bool driver_has_hardware() {
   switch (s_initState) {
     case EnetInitStates::kHardwareInitialized:
       ATTRIBUTE_FALLTHROUGH;
@@ -747,7 +742,7 @@ bool has_hardware() {
   return (s_initState != EnetInitStates::kNoHardware);
 }
 
-FLASHMEM void set_chip_select_pin(const int pin) {
+FLASHMEM void driver_set_chip_select_pin(const int pin) {
   if (pin < 0) {
     s_chipSelectPin = kDefaultCSPin;
   } else {
@@ -755,7 +750,7 @@ FLASHMEM void set_chip_select_pin(const int pin) {
   }
 }
 
-FLASHMEM bool init() {
+FLASHMEM bool driver_init() {
   if (s_initState == EnetInitStates::kInitialized) {
     return true;
   }
@@ -777,7 +772,7 @@ FLASHMEM bool init() {
 }
 
 // This also powers down the PHY.
-FLASHMEM void deinit() {
+FLASHMEM void driver_deinit() {
   switch (s_initState) {
     case EnetInitStates::kStart:
       ATTRIBUTE_FALLTHROUGH;
@@ -890,7 +885,7 @@ static bool readAndScan() {
   return retval;
 }
 
-struct pbuf* proc_input(struct netif* const netif, const int counter) {
+struct pbuf* driver_proc_input(struct netif* const netif, const int counter) {
   (void)netif;
   (void)counter;
 
@@ -928,19 +923,19 @@ struct pbuf* proc_input(struct netif* const netif, const int counter) {
   return p;
 }
 
-void poll(struct netif* const netif) {
+void driver_poll(struct netif* const netif) {
   SPITransaction spiTransaction;
   check_link_status(netif);
 }
 
-void get_link_info(LinkInfo* const li) {
+void driver_get_link_info(struct LinkInfo* const li) {
   *li = s_linkInfo;
 }
 
 // Invalid:
 // * Speed not 10 or 100
 // * Speed 10 and auto-negotiation
-bool set_link(const LinkSettings* const ls) {
+bool driver_set_link(const struct LinkSettings* const ls) {
   switch (s_initState) {
     case EnetInitStates::kHardwareInitialized:
       ATTRIBUTE_FALLTHROUGH;
@@ -1003,13 +998,13 @@ bool set_link(const LinkSettings* const ls) {
     kPHYCFGR = static_cast<uint8_t>((*kPHYCFGR & ~(0x07 << 3)) |
                                     phycfg::kOPMD |  // Software configures
                                     (newOPMDC << 3));
-    internal_reset_phy();
+    reset_phy();
   }
   return true;
 }
 
 // Outputs data from the MAC.
-err_t output(struct pbuf* const p) {
+err_t driver_output(struct pbuf* const p) {
   if (s_initState != EnetInitStates::kInitialized) {
     return ERR_IF;
   }
@@ -1038,7 +1033,7 @@ err_t output(struct pbuf* const p) {
 }
 
 #if QNETHERNET_ENABLE_RAW_FRAME_SUPPORT
-bool output_frame(const void* const frame, const size_t len) {
+bool driver_output_frame(const void* const frame, const size_t len) {
   if (s_initState != EnetInitStates::kInitialized) {
     return false;
   }
@@ -1056,7 +1051,7 @@ bool output_frame(const void* const frame, const size_t len) {
 
 #if !QNETHERNET_ENABLE_PROMISCUOUS_MODE
 
-bool set_incoming_mac_address_allowed(const uint8_t mac[ETH_HWADDR_LEN],
+bool driver_set_incoming_mac_address_allowed(const uint8_t mac[ETH_HWADDR_LEN],
                                              const bool allow) {
   if (mac == nullptr) {
     return false;
@@ -1086,7 +1081,7 @@ bool set_incoming_mac_address_allowed(const uint8_t mac[ETH_HWADDR_LEN],
 //  Notifications from Upper Layers
 // --------------------------------------------------------------------------
 
-void notify_manual_link_state(const bool flag) {
+void driver_notify_manual_link_state(const bool flag) {
   s_manualLinkState = flag;
 }
 
@@ -1094,17 +1089,15 @@ void notify_manual_link_state(const bool flag) {
 //  Link Functions
 // --------------------------------------------------------------------------
 
-void restart_auto_negotiation() {
+void driver_restart_auto_negotiation() {
   // It is assumed that this restarts auto-negotiation
-  internal_reset_phy();
+  reset_phy();
 }
 
-void reset_phy() {
-  internal_reset_phy();
+void driver_reset_phy() {
+  reset_phy();
 }
 
-}  // namespace driver
-}  // namespace network
-}  // namespace qindesign
+}  // extern "C"
 
 #endif  // QNETHERNET_INTERNAL_DRIVER_W5500
