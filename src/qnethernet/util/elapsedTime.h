@@ -6,7 +6,7 @@
 // template parameter and is expected to conform to the Clock C++ named
 // requirement. It should also be a "steady" clock; that is, 'is_steady'
 // returns true.
-// See: https://www.cppreference.com/cpp/named_req/Clock
+// See: https://www.cppreference.com/w/cpp/named_req/Clock.html
 // This file is part of the QNEthernet library.
 
 #pragma once
@@ -54,7 +54,7 @@ class elapsedTime {
   }
 
   // For operator overloading, see also:
-  // https://www.cppreference.com/cpp/language/operators
+  // https://en.cppreference.com/w/cpp/language/operators.html
 
   // Assigns a duration count to the timer. The count type is duration::rep.
   elapsedTime& operator=(const rep d) {
