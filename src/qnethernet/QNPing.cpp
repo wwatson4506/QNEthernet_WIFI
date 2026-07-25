@@ -23,6 +23,8 @@
 namespace qindesign {
 namespace network {
 
+void qpingDump(unsigned char *memory, unsigned int len);
+
 static constexpr size_t kEchoHdrSize = sizeof(struct icmp_echo_hdr);
 static constexpr size_t kMaxHdrSize = IP_HLEN + kEchoHdrSize;
 static_assert(kMaxHdrSize <= std::numeric_limits<uint16_t>::max(),
@@ -137,8 +139,6 @@ bool Ping::send(const PingData& req) {
   }
 
   // Prepare the ICMP packet
-  // Note: Not casting the pbuf payload to an echo header in case there are
-  //       alignment mismatches
   struct icmp_echo_hdr echo;
   ICMPH_TYPE_SET(&echo, ICMP_ECHO);
   ICMPH_CODE_SET(&echo, 0);
@@ -148,11 +148,6 @@ bool Ping::send(const PingData& req) {
 
   // Must be before the gotos
   const ip_addr_t ipaddr IPADDR4_INIT(static_cast<uint32_t>(req.ip));
-#if QNETHERNET_ENABLE_RAW_FRAME_SUPPORT || \
-    !defined(QNETHERNET_INTERNAL_DRIVER_TEENSY41)
-  uint16_t chksum;
-#endif  // QNETHERNET_ENABLE_RAW_FRAME_SUPPORT ||
-        // !defined(QNETHERNET_INTERNAL_DRIVER_TEENSY41)
 
   err_t err = pbuf_take(p, &echo, sizeof(echo));
   if (err != ERR_OK) {
@@ -166,18 +161,19 @@ bool Ping::send(const PingData& req) {
     }
   }
 
-#if QNETHERNET_ENABLE_RAW_FRAME_SUPPORT || \
-    !defined(QNETHERNET_INTERNAL_DRIVER_TEENSY41)
-  chksum = inet_chksum(p->payload, static_cast<uint16_t>(packetSize));
-  pbuf_take_at(p, &chksum, 2, offsetof(struct icmp_echo_hdr, chksum));
-#endif  // QNETHERNET_ENABLE_RAW_FRAME_SUPPORT ||
-        // !defined(QNETHERNET_INTERNAL_DRIVER_TEENSY41)
-
   // Send the packet
   pcb_->ttl = req.ttl;
 #if LWIP_MULTICAST_TX_OPTIONS
   raw_set_multicast_ttl(pcb_, req.ttl);
 #endif  // LWIP_MULTICAST_TX_OPTIONS
+
+//printf("***************** qpingDump(pcb_,sizeof(pcb_)) ************************\n");
+//qpingDump((uint8_t *)pcb_,sizeof(pcb_));
+//printf("***********************************************************\n");
+//printf("***************** qpingDump(p,p->tot_len) ************************\n");
+//qpingDump((uint8_t *)p,p->tot_len);
+//printf("*******************************************************\n");
+
   err = raw_sendto(pcb_, p, &ipaddr);
   if (err != ERR_OK) {
     goto send_err;
@@ -193,8 +189,41 @@ send_err:
   Ethernet.loop();  // Allow the stack to move along
   return false;
 }
+// Simple hex dump routine.
+void qpingDump(unsigned char *memory, unsigned int len)
+{
+   	unsigned int	i=0, j=0;
+	unsigned char	c=0;
+
+//	printf("                     (FLASH) MEMORY CONTENTS");
+	printf("\n\rADDR          00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F");
+	printf("\n\r-------------------------------------------------------------\n\r");
+
+
+	for(i = 0; i <= (len-1); i+=16) {
+//		phex16((i + memory));
+		printf("%8.8x",(unsigned int)(i + memory));
+		printf("      ");
+		for(j = 0; j < 16; j++) {
+			c = memory[i+j];
+			printf("%2.2x",c);
+			printf(" ");
+		}
+		printf("  ");
+		for(j = 0; j < 16; j++) {
+			c = memory[i+j];
+			if(c > 31 && c < 127)
+				printf("%c",c);
+			else
+				printf(".");
+		}
+//		_delay_ms(10);
+		printf("\n");
+	}
+}
 
 }  // namespace network
 }  // namespace qindesign
+
 
 #endif  // LWIP_RAW
