@@ -1,6 +1,7 @@
-// CYW4343W event functions.
+// PicoWi IP functions, see http://iosoft.blog/picowi for details
 //
-// Copyright (c) 2026, Warren Watson
+// Copyright (c) 2022, Jeremy P Bentham
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
@@ -229,7 +230,8 @@ typedef struct {
 //==============================================================================
 typedef struct {
   SDPCM_HDR sdpcm;
-  uint16_t pad;  BDC_HDR_T4 bdc;
+  uint16_t pad;
+  BDC_HDR_T4 bdc;
   uint8_t data[TXDATA_LEN];
 } TX_MSG;
 //==============================================================================
@@ -282,16 +284,12 @@ private:
     "UNSOLICITED","ATTEMPT","PARTIAL","NEWSCAN","NEWASSOC",
     "11HQUIET","SUPPRESS","NOCHANS","CCXFASTRM","CS_ABORT" };
   MACADDR bcast_mac = {0xff,0xff,0xff,0xff,0xff,0xff};
-
-TX_MSG tx_msg = {
-  .sdpcm = {
-  .chan = SDPCM_CHAN_DATA,
-  .hdrlen = sizeof(SDPCM_HDR)+2},
-  .bdc = {
-    .flags=0x20
-  }
-};
-
+  TX_MSG tx_msg = {.sdpcm = {
+	               .chan = SDPCM_CHAN_DATA,
+	               .hdrlen = sizeof(SDPCM_HDR)+2},
+                   .bdc = {
+				   .flags=0x20}
+				  };
 };
 //==============================================================================
 // EOF

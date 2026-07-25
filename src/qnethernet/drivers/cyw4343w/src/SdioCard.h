@@ -22,7 +22,6 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
  */
-// Modified for use with CYW4343x WIFI card. 2025-2026.
 #ifndef SdioCard_h
 #define SdioCard_h
 
