@@ -102,7 +102,7 @@
 #else /* LWIP_DHCP */
 #define IP_ACCEPT_LINK_LAYER_ADDRESSING 0
 #endif /* LWIP_DHCP */
-
+void ip4Dump(unsigned char *memory, unsigned int len);
 /** The IP header ID of the next outgoing IP packet */
 static u16_t ip_id;
 
@@ -961,21 +961,11 @@ ip4_output_if_opt_src(struct pbuf *p, const ip4_addr_t *src, const ip4_addr_t *d
     chk_sum += iphdr->_len;
 #endif /* CHECKSUM_GEN_IP_INLINE */
     IPH_OFFSET_SET(iphdr, 0);
-    if ((proto == IP_PROTO_TCP) && (p->tot_len <= IP4_MIN_MTU_LENGTH))
-    {
-      /* For small TCP packets, e.g. protocol handshake,
-       * do not bother generating IP_ID (just use 0 ip_id)
-       */
-      IPH_ID_SET(iphdr, lwip_htons(0));
-    }
-    else
-    {
-      IPH_ID_SET(iphdr, lwip_htons(ip_id));
-      ++ip_id;
-    }
+    IPH_ID_SET(iphdr, lwip_htons(ip_id));
 #if CHECKSUM_GEN_IP_INLINE
     chk_sum += iphdr->_id;
 #endif /* CHECKSUM_GEN_IP_INLINE */
+    ++ip_id;
 
     if (src == NULL) {
       ip4_addr_copy(iphdr->src, *IP4_ADDR_ANY4);
@@ -1046,8 +1036,19 @@ ip4_output_if_opt_src(struct pbuf *p, const ip4_addr_t *src, const ip4_addr_t *d
     return ip4_frag(p, netif, dest);
   }
 #endif /* IP_FRAG */
-
   LWIP_DEBUGF(IP_DEBUG, ("ip4_output_if: call netif->output()\n"));
+/*
+printf("***************** ip4Dump(netif,sizeof(netif)) ************************\n");
+ip4Dump((uint8_t *)netif,sizeof(netif));
+printf("*******************************************************\n");
+printf("***************** ip4Dump(p-payload,p->tot_len) ************************\n");
+ip4Dump((uint8_t *)p,p->tot_len);
+printf("*******************************************************\n");
+printf("***************** ip4Dump(dest,sizeof(dest)) ************************\n");
+ip4Dump((uint8_t *)dest,sizeof(dest));
+printf("*******************************************************\n");
+printf("I'm here...\n");
+*/
   return netif->output(netif, p, dest);
 }
 
@@ -1172,5 +1173,37 @@ ip4_debug_print(struct pbuf *p)
   LWIP_DEBUGF(IP_DEBUG, ("+-------------------------------+\n"));
 }
 #endif /* IP_DEBUG */
+// Simple hex dump routine.
+void ip4Dump(unsigned char *memory, unsigned int len)
+{
+   	unsigned int	i=0, j=0;
+	unsigned char	c=0;
+
+//	printf("                     (FLASH) MEMORY CONTENTS");
+	printf("\n\rADDR          00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F");
+	printf("\n\r-------------------------------------------------------------\n\r");
+
+
+	for(i = 0; i <= (len-1); i+=16) {
+//		phex16((i + memory));
+		printf("%8.8x",(unsigned int)(i + memory));
+		printf("      ");
+		for(j = 0; j < 16; j++) {
+			c = memory[i+j];
+			printf("%2.2x",c);
+			printf(" ");
+		}
+		printf("  ");
+		for(j = 0; j < 16; j++) {
+			c = memory[i+j];
+			if(c > 31 && c < 127)
+				printf("%c",c);
+			else
+				printf(".");
+		}
+//		_delay_ms(10);
+		printf("\n");
+	}
+}
 
 #endif /* LWIP_IPV4 */
