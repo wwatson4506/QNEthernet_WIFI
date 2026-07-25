@@ -107,7 +107,6 @@ void setup() {
   printf("    Gateway     = %u.%u.%u.%u\r\n", ip[0], ip[1], ip[2], ip[3]);
   ip = Ethernet.dnsServerIP();
   printf("    DNS         = %u.%u.%u.%u\r\n", ip[0], ip[1], ip[2], ip[3]);
-
   printf("\r\n");
 
   // Fill the payload with some data
