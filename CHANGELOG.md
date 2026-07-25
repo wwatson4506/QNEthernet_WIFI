@@ -8,8 +8,6 @@ and this project adheres to
 
 ## [Unreleased]
 
-## [0.36.0]
-
 ### Added
 * Added `elapsedTime::reset()` for resetting the timer back to zero.
 * Added `rep` assignment operator and constructor to `elapsedTime` for assigning
@@ -17,28 +15,11 @@ and this project adheres to
 * Added `elapsedTime` operators that use a count.
 * Added a `settimeofday()` implementation in the HAL for Teensy, gated on the
   new `QNETHERNET_PROVIDE_TEENSY_SETTIMEOFDAY` configuration macro.
-* Added `qnethernet_hal_entropy_available()` function to the HAL.
-* Added `operator(buf, size)` and `available()` to
-  `qindesign::security::random_device`.
-* Added some basic entropy randomness quality tests.
-* Added `QNETHERNET_ENABLE_RAW_FRAME_FILTER_HOOK` option for determining whether
-  to route incoming frames directly to the raw frame handling machinery.
-  (Thanks to Folkert van Heusden for helping with this:
-   <https://github.com/ssilverman/QNEthernet/issues/106#issuecomment-4619339870>)
 
 ### Changed
-* Enabled raw frame loopback by default, but not raw frame support.
+* Enabled raw frame support and loopback by default.
 * Changed _SNTPClient_ example to assume that the `settimeofday()`
   function exists.
-* Changed entropy functions to set `errno` to `EIO` instead of `EAGAIN` on
-  entropy generation failure.
-* Made the HAL's `qnethernet_hal_deinit_entropy()` and
-  `qnethernet_hal_estimate entropy()` weak.
-* Improved entropy and `qindesign::security::random_device` APIs.
-* Updated cppreference.com URLs.
-* Moved driver C functions into namespace `qindesign::network::driver`.
-* Moved entropy C functions into namespace `qindesign::entropy`.
-* Changed `QNETHERNET_FLUSH_AFTER_WRITE` to `QNETHERNET_FLUSH_AFTER_TCP_WRITE`.
 
 ### Removed
 * Removed `qindesign::security::RandomDevice` in favour of the
@@ -49,20 +30,6 @@ and this project adheres to
 * Fixed Teensy 4.1 driver to clear the MAC address hash-collision bookkeeping
   when the driver is uninitialized.
 * Fixed TRNG (entropy) access for lower operating frequencies, on Teensy 4.
-* Fixed to add some `errno` assignments and update some related comments
-  and docs.
-* Fixed TRNG initialization to use the correct macros.
-* Fixed raw frame loopback to pass along broadcast frames.
-  (Thanks to Folkert van Heusden:
-   <https://github.com/ssilverman/QNEthernet/issues/106#issuecomment-4639110163>)
-* Fixed Teensy 4.1 driver to not overwrite output source MAC address.
-  (Thanks to Folkert van Heusden:
-   <https://github.com/ssilverman/QNEthernet/issues/106#issuecomment-4638274539>)
-* Fixed Teensy 4.1 driver to not calculate checksums when sending raw frames.
-  (Thanks to Folkert van Heusden:
-   <https://github.com/ssilverman/QNEthernet/issues/106#issuecomment-4697867441>,
-   <https://github.com/ssilverman/QNEthernet/issues/106#issuecomment-4754025776>)
-* Fixed Ping to calculate the ICMP checkum if needed.
 
 ## [0.35.0]
 

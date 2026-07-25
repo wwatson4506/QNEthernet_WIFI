@@ -1,13 +1,5 @@
-# This is a version of QNEthernet for use with the CYW4343W WIFI card. QNEthernet examples including ping.ino and simplePing.ino are tested and seem to work.
+# This is a version of QNEthernet for use with the CYW4343W WIFI card. Most QNEthernet examples except for ping.ino and simplePing.ino are tested and seem to work.
 # THIS IS WORK IN PROGRESS. NO GUARANTEES AT All!! THE ORIGINAL AUTHOR IS NOT RESPONSIBLE FOR ANY OF THIS MODIFIED CODE!!
-## This version is a cleanup of the library:
-- Added a print debug switch to enable or disable printing debug information during initialization. Will be expanded later.
-- Added guards against trying to use the default SSID and password in "QNEthernet_WiFI/src/secrets.h". Will throw a descriptive error.
-- Removed more unused code.
-- Fixed "cyw43_scan.ino". Is now stable and repeatable.
-- Reworked WIFI initialization and join API.
-
-## This library is a rework of QNEthernet v0.36.0 with support for the CYW4343W WiFI device. 
 
  ## PINOUT:
 TEENSY 4.1   WIFI Board
@@ -19,26 +11,27 @@ TEENSY 4.1   WIFI Board
 - 40 --------> D0
 - 34 --------> INT
 - 33 --------> WL_ON
-## To use the examples with the wifi card you must first edit the "QNEthernet_WIFI_0.36.0/src/secrets.h" file:
+
+## To use the examples with the wifi card you must first edit the "QNEthernet/src/qnethernet/drivers/cyw4343w/src/secrets.h" file:
 ```
 // The secrets file
 
 // SSID
-#define MY_SSID            "yourSSID"
+#define MY_SSID            "testSSID"
 
 //PASSPHRASE
-#define MY_PASSPHRASE      "yourPWD"
+#define MY_PASSPHRASE      "testPASSPHRASE"
 
 // Security settings: 0 for none, 1 for WPA_TKIP, 2 for WPA2
-// The hard-coded SSID and password is for test purposes only!!!
+// The hard-coded password is for test purposes only!!!
 #define SECURITY        2
 ```
 
 Set MY_SSID to your network wifi name and set MY_PASSPHRASE to your chosen password. Set SECURITY to one of the three types.
 
-Most all of the examples seem to work. Some have not been tested. Sketches simplePing.ino and ping.ino are working now. 
+Most all of the examples seem to work. Some have not been tested. Right now simplePing.ino and ping.ino are not working. More work to do on those. 
 
-This branch of the QNEthernet (QNEthernet_WIFI_0.36.0) library will allow you to use both wired and wifi ethernet on the Teensy4.1.
+This branch of the QNEthernet (CYW4343W_WIP) library will allow you to use both wired and wifi ethernet on the Teensy4.1.
 This define in QNEthernet_opts.h switches betweeen the two:
 ```
 // 1 == Disable T41 native ethernet IF and enable T41 CYW4343W IF.
@@ -47,27 +40,14 @@ This define in QNEthernet_opts.h switches betweeen the two:
 #define ARDUINO_TEENSY41_CYW4343W 1
 #endif
 ```
+Two new examples specific to the CYW4343W have been added:
+- cyw43_ping.ino
+- cyw43_scan.ino
 
-## CHANGES/UPDATES
-- The wifi scan function was reworked and now works without issue. 
+The wifi scan function still needs work. It will fail sometimes when doing repeated scans.
 
-07-12-26:
-  - Removed all unused code including cyw43_ping.ino, ICMP code, ARP code, unused ".h" files, IP code etc...
-  - Removed unused debug code.
-  - Removed unused structs.
-  - Removed unused defines and variables.
-  - Removed cyw43_ping.ino, ping.h and all references to ICMP and ARP usage.
-  - Moved all scan code functions and defines from event.cpp and event.h to scan.cpp and scan.h.
-  - Moved all join code functions and defines from event.cpp and event.h to join.cpp and join.h.
-
-07-16-26:
-  - Finish removing un-used structs.
-  - Finish rearranging and optimizing ".h" and ".cpp" files.
-  - Now just waiting for new CYW43439 (1YN) WiFI shield so this driver can be adapted to it. 
-### Again this is work in progress. Those with the other hardware and CYW4343W chip types at hand can do testing.
-### Most of the Arduino style Ethernet library has been tested and works. This library is found at:
-https://github.com/wwatson4506/QNEthernet_WIFI_Examples
-
+### Again this is work in progress and not much more effort will be put into it by myself until I know that further hardware development is happening.
+### Those with the other hardware and CYW4343x chip types at hand can do testing. I am curious to see what is working and what is not. Hardly any of the Arduino style Ethernet library has been tested yet. Much more work needs to be done.
 
 [![Sponsor @ssilverman button](https://img.shields.io/badge/Sponsor-30363d.svg?logo=githubsponsors&logoColor=EA4AAA)](https://github.com/sponsors/ssilverman "Sponsor @ssilverman on GitHub")
 or
