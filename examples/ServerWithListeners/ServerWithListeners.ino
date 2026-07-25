@@ -116,7 +116,10 @@ void setup() {
     // Wait for Serial
   }
   printf("Starting...\r\n");
-  printf("Please Wait...\n");
+
+  // Unlike the Arduino API (which you can still use), QNEthernet uses
+  // the Teensy's internal MAC address by default, so we can retrieve
+  // it here. But has to be after begin() on the CYW4343w wifi card..
 
   // Add listeners
   // It's important to add these before doing anything with Ethernet
@@ -149,23 +152,15 @@ void setup() {
   });
 
   if (initEthernet()) {
-    // Unlike the Arduino API (which you can still use), QNEthernet uses
-    // the Teensy's internal MAC address by default, so we can retrieve
-    // it here.
-    //
-    // Note: With WIFI we need setup the WIFI first to get the MAC address.
-    //
-    uint8_t mac[6];
-    Ethernet.macAddress(mac);  // This is informative; it retrieves, not sets
-    printf("MAC = %02x:%02x:%02x:%02x:%02x:%02x\r\n",
-           mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
     // Start the server
     printf("Starting server on port %u...", kServerPort);
     server.begin();
     printf("%s\r\n", (server) ? "Done." : "FAILED!");
   }
-
-
+  uint8_t mac[6];
+  Ethernet.macAddress(mac);  // This is informative; it retrieves, not sets
+  printf("MAC = %02x:%02x:%02x:%02x:%02x:%02x\r\n",
+         mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 }
 
 // Main program loop.

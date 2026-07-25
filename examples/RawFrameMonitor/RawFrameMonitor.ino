@@ -46,7 +46,6 @@ constexpr uint16_t kEtherTypeQinQ = 0x88A8u;
 //  Program State
 // -------------------------------------------------------------------
 
-
 namespace {  // Internal linkage section
 
 // We can access the frame's internal data buffer directly,
@@ -66,7 +65,6 @@ void setup() {
     // Wait for Serial
   }
   printf("Starting...\r\n");
-  printf("Please Wait...\n");
 
 
   // Add listeners before starting Ethernet
@@ -76,11 +74,6 @@ void setup() {
   });
 
   Ethernet.onAddressChanged([]() {
-  // Print the MAC address
-  uint8_t mac[6];
-  Ethernet.macAddress(mac);  // This is informative; it retrieves, not sets
-  printf("MAC = %02x:%02x:%02x:%02x:%02x:%02x\r\n",
-         mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
     IPAddress ip = Ethernet.localIP();
     bool hasIP = (ip != INADDR_NONE);
     if (hasIP) {
@@ -109,11 +102,16 @@ void setup() {
   // Optionally turn DHCP off by uncommenting the following line:
   // Ethernet.setDHCPEnabled(false);
   printf("Starting Ethernet%s...\r\n",
-  Ethernet.isDHCPEnabled() ? " with DHCP" : "");
+         Ethernet.isDHCPEnabled() ? " with DHCP" : "");
   if (!Ethernet.begin()) {
     printf("Failed to start Ethernet\r\n");
     return;
   }
+  // Print the MAC address
+  uint8_t mac[6];
+  Ethernet.macAddress(mac);  // This is informative; it retrieves, not sets
+  printf("MAC = %02x:%02x:%02x:%02x:%02x:%02x\r\n",
+         mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 }
 
 // Main program loop.

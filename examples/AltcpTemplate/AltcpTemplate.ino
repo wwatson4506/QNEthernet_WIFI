@@ -83,7 +83,6 @@ void setup() {
     // Wait for Serial
   }
   printf("Starting...\r\n");
-  printf("Please Wait...\n");
 
   // Get an IP address
   printf("Starting Ethernet with DHCP...\r\n");
@@ -91,16 +90,15 @@ void setup() {
     printf("Failed to start Ethernet\r\n");
     return;
   }
+  uint8_t mac[6];
+  Ethernet.macAddress(mac);  // This is informative; it retrieves, not sets
+  printf("MAC = %02x:%02x:%02x:%02x:%02x:%02x\r\n",
+         mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
   printf("Waiting for local IP...\r\n");
   if (!Ethernet.waitForLocalIP(kDHCPTimeout)) {
     printf("Failed to get IP address from DHCP\r\n");
     return;
   }
-
-  uint8_t mac[6];
-  Ethernet.macAddress(mac);  // This is informative; it retrieves, not sets
-  printf("MAC = %02x:%02x:%02x:%02x:%02x:%02x\r\n",
-         mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 
   IPAddress ip = Ethernet.localIP();
   printf("    Local IP    = %u.%u.%u.%u\r\n", ip[0], ip[1], ip[2], ip[3]);

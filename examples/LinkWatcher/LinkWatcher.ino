@@ -21,7 +21,6 @@ void setup() {
     // Wait for Serial
   }
   printf("Starting...\r\n");
-  printf("Please Wait...\n");
 
   // Listen for link changes
   Ethernet.onLinkState([](bool state) {

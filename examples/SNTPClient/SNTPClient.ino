@@ -55,16 +55,12 @@ uint8_t buf[48];
 // Program setup.
 void setup() {
   Serial.begin(115200);
-  while (!Serial && (millis() < 5000)) {
+  while (!Serial && (millis() < 4000)) {
     // Wait for Serial
   }
-  if(CrashReport) {
-	Serial.print(CrashReport);
-    waitForInput();
-  }
-
   printf("Starting...\r\n");
-  printf("Please Wait...\r\n");
+
+  printf("Starting Ethernet with DHCP...\r\n");
   if (!Ethernet.begin()) {
     printf("Failed to start Ethernet\r\n");
     return;
@@ -73,7 +69,6 @@ void setup() {
   Ethernet.macAddress(mac);  // This is informative; it retrieves, not sets
   printf("MAC = %02x:%02x:%02x:%02x:%02x:%02x\r\n",
          mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-
   printf("Waiting for local IP...\r\n");
   if (!Ethernet.waitForLocalIP(kDHCPTimeout)) {
     printf("Failed to get IP address from DHCP\r\n");
@@ -114,8 +109,6 @@ void setup() {
   buf[43] = t;
 
   // Send the packet
-  // Note: If your gateway doesn't have an SNTP server — many routers do — then
-  //       use something like "pool.ntp.org" or "time.nist.gov" instead
   printf("Sending SNTP request to the gateway...");
   if (!udp.send(timeServer, kNTPPort, buf, 48)) {
     printf("ERROR.");
@@ -184,12 +177,4 @@ void loop() {
   } else {
     printf("std::gmtime() failed!\r\n");
   }
-}
-
-// After testing finished,
-void waitForInput() // to be removed later.
-{
-  Serial.println("Finished: Press any key to run again...");
-  while (Serial.read() == -1) ;
-  while (Serial.read() != -1) ;
 }

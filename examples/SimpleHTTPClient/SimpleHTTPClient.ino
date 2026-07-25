@@ -69,7 +69,6 @@ void setup() {
     // Wait for Serial
   }
   Serial.println("Starting...");
-  printf("Please Wait...\n");
 
   // Watch for link changes
   Ethernet.onLinkState([](bool state) {
