@@ -25,9 +25,9 @@
 #include "qnethernet/QNMDNS.h"
 #include "qnethernet/StaticInit.h"
 #include "qnethernet/compat/c++11_compat.h"
-#include "qnethernet/entropy/random_device.h"
 #include "qnethernet/internal/optional.h"
 #include "qnethernet/lwip_driver.h"
+#include "qnethernet/security/random_device.h"
 #include "qnethernet/util/PrintUtils.h"
 #include "qnethernet_opts.h"
 
@@ -60,7 +60,7 @@ class EthernetClass final {
 
   // Returns a string containing the library version number.
   static const char* libraryVersion() {
-    return "0.37.0-snapshot";
+    return "0.36.0-snapshot";
   }
 
   // Returns the maximum number of multicast groups. Note that mDNS will use
@@ -247,8 +247,8 @@ class EthernetClass final {
   // Manually sets the link state. This is useful when using the loopback
   // feature. Network operations will usually fail unless there's a link.
   //
-  // If the network is not enabled then this will return immediately and errno
-  // will be set to ENETDOWN.
+  // If the network is not enabled then this will return false immediately and
+  // errno will be set to ENETDOWN.
   void setLinkState(bool flag) const;
 
   // Returns information about the link. This is only valid if the link is up
@@ -486,12 +486,12 @@ class EthernetClass final {
   static constexpr uint32_t kPollInterval = 125;  // About 8 times a second
 
   // Creates a new network interface. The MAC address will be unset.
-  EthernetClass();
+  EthernetClass() = default;
 
   ~EthernetClass() noexcept;
 
   // EthernetClass is neither copyable nor movable
-  // See also: https://www.cppreference.com/cpp/language/rule_of_three
+  // See also: https://en.cppreference.com/w/cpp/language/rule_of_three
   EthernetClass(const EthernetClass&) = delete;
   EthernetClass(EthernetClass&&) = delete;
   EthernetClass& operator=(const EthernetClass&) = delete;

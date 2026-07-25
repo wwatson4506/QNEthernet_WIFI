@@ -7,8 +7,6 @@
 
 #pragma once
 
-#include <stdbool.h>
-
 // 1 == Disable T41 native ethernet IF and enable T41 CYW4343W IF.
 // 0 == Enable T41 native ethernet IF and disable T41 CYW4343W IF.
 #ifndef ARDUINO_TEENSY41_CYW4343W
@@ -99,20 +97,6 @@
 #define QNETHERNET_ENABLE_PROMISCUOUS_MODE 0
 #endif
 
-// Indicates that a filter function checks whether a frame should be passed
-// straight through to the raw frame handling. A function with the following
-// signature should be defined somewhere. Don't forget to make it `extern "C"`
-// if defined in a C++ file. Additionally, the function should not free
-// the pbuf.
-//
-//   bool qnethernet_raw_frame_filter(struct pbuf* p, struct netif* netif);
-//
-// The function should return 'true' if the frame should go straight to raw
-// frame processing, and 'false' otherwise.
-#ifndef QNETHERNET_ENABLE_RAW_FRAME_FILTER_HOOK
-#define QNETHERNET_ENABLE_RAW_FRAME_FILTER_HOOK 0
-#endif
-
 // Enables raw frame loopback when the destination MAC address matches the local
 // MAC address or the broadcast MAC address.
 #ifndef QNETHERNET_ENABLE_RAW_FRAME_LOOPBACK
@@ -121,7 +105,7 @@
 
 // Enables raw frame support.
 #ifndef QNETHERNET_ENABLE_RAW_FRAME_SUPPORT
-#define QNETHERNET_ENABLE_RAW_FRAME_SUPPORT 0
+#define QNETHERNET_ENABLE_RAW_FRAME_SUPPORT 1
 #endif
 
 // Enables use of secure TCP initial sequence numbers (ISNs).
@@ -133,13 +117,8 @@
 // TCP efficency. This option is for use with hard-to-modify code or libraries
 // that assume data will get sent immediately. The preferred approach is to call
 // flush() in the code or library.
-#ifndef QNETHERNET_FLUSH_AFTER_TCP_WRITE
-#define QNETHERNET_FLUSH_AFTER_TCP_WRITE 0
-#endif
-
-// Put lwIP-declared memory into RAM1. (Teensy 4)
-#ifndef QNETHERNET_LWIP_MEMORY_IN_RAM1
-#define QNETHERNET_LWIP_MEMORY_IN_RAM1 0
+#ifndef QNETHERNET_FLUSH_AFTER_WRITE
+#define QNETHERNET_FLUSH_AFTER_WRITE 0
 #endif
 
 // Put lwIP-declared memory into RAM1. (Teensy 4)
