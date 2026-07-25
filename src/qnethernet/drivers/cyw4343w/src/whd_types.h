@@ -21,6 +21,8 @@
  */
 
 #include <stdint.h>
+#include "cy_result.h"
+#include "cyhal_hw_types.h"
 
 #ifndef INCLUDED_WHD_TYPES_H_
 #define INCLUDED_WHD_TYPES_H_
@@ -29,8 +31,6 @@
 extern "C"
 {
 #endif
-/** GPIO object */
-typedef uint32_t /* TODO: port specific type */ cyhal_gpio_t;
 
 /******************************************************
 *                      Macros
@@ -182,7 +182,6 @@ typedef enum
     WHD_SECURITY_WPA_AES_PSK      = (WPA_SECURITY | AES_ENABLED),                                      /**< WPA PSK Security with AES                             */
     WHD_SECURITY_WPA_MIXED_PSK    = (WPA_SECURITY | AES_ENABLED | TKIP_ENABLED),                       /**< WPA PSK Security with AES & TKIP                      */
     WHD_SECURITY_WPA2_AES_PSK     = (WPA2_SECURITY | AES_ENABLED),                                     /**< WPA2 PSK Security with AES                            */
-//    WHD_SECURITY_WPA2_AES_PSK_SHA256 = (WPA2_SECURITY | WPA2_SHA256_SECURITY | AES_ENABLED),           /**< WPA2 PSK Security with AES & SHA256)                  */  
     WHD_SECURITY_WPA2_TKIP_PSK    = (WPA2_SECURITY | TKIP_ENABLED),                                    /**< WPA2 PSK Security with TKIP                           */
     WHD_SECURITY_WPA2_MIXED_PSK   = (WPA2_SECURITY | AES_ENABLED | TKIP_ENABLED),                      /**< WPA2 PSK Security with AES & TKIP                     */
     WHD_SECURITY_WPA2_FBT_PSK     = (WPA2_SECURITY | AES_ENABLED | FBT_ENABLED),                       /**< WPA2 FBT PSK Security with AES & TKIP */
@@ -752,7 +751,6 @@ typedef struct wl_bss_info_struct
     /* Add new fields here */
     /* variable length Information Elements */
 } wl_bss_info_t;
-
 
 /** Structure for storing 802.11 powersave listen interval values \n
  *  See @ref whd_wifi_get_listen_interval for more information

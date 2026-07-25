@@ -1,5 +1,3 @@
-// CYW4343W event defines.
-//
 #ifndef EVTNUM_H
 #define EVTNUM_H
 // Async events
