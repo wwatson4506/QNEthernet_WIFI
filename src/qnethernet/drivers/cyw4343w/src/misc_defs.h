@@ -57,6 +57,18 @@
 //==============================================================================
 #define SHOW_HIDDEN false
 
+//==============================================================================
+// Begin parameters defines:
+// SDIO1 (false), SDIO2 (true) which uSDHC IF to use.
+// WL_REG_ON pin
+// WL_IRQ pin (-1 to ignore)
+// EXT_LPO pin (optional, -1 to ignore)
+// WIFIcard.begin(true, 33, 34, -1)
+//==============================================================================
+#define REG_ON 33
+#define WL_IRQ 34
+#define EXT_LPO -1
+//#define BT_ON ??
 
 //==============================================================================
 // SD function numbers
