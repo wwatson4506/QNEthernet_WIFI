@@ -51,18 +51,18 @@ int Scan::scan_event_handler(EVENT_INFO *eip) {
     // Check for scan completion.
     if(erp->eventh.status == 0) {
       return(-1); // Return completion.
+    } else {
+#if SHOW_HIDDEN == false  // Skip displaying hidden sites if false.
+      if(erp->info.SSID_len != 0) {
+#endif
       // Check for invalid length info struct data length.
       if((erp->info.ie_offset + erp->info.ie_length) > erp->info.length) {
         erp->eventh.status = (uint32_t)-1; // set invalid
         printf("Scan Failed\n");
         return erp->eventh.status; // Return invalid status.
       }
-    } else {
-#if SHOW_HIDDEN == false  // Skip displaying hidden sites if false.
-      if(erp->info.SSID_len != 0) {
-#endif
-        scan_count++; // Start scan count at 1. 
-        parseScanResult(erp); // Parse Information Element RSN entries.
+      scan_count++; // Start scan count at 1. 
+      parseScanResult(erp); // Parse Information Element RSN entries.
 #if SHOW_HIDDEN == false
 	  }
 #endif
