@@ -5,7 +5,7 @@
 
 #include "event.h"
 
-#define MAX_SCAN_ENTRIES 80 // Initial entry count (less if not showing hidden sites).
+#define MAX_SCAN_ENTRIES 60 // Initial entry count (less if not showing hidden sites).
 #define SCAN_CHAN_TIME      40
 #define SCANTYPE_ACTIVE     0
 #define SCANTYPE_PASSIVE    1
