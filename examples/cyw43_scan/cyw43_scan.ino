@@ -55,7 +55,7 @@ void setup()
   //WL_IRQ pin (-1 to ignore)
   //EXT_LPO pin (optional, -1 to ignore)
   //////////////////////////////////////////
-  if (WIFIcard.begin(true, 33, 34, -1) == true) { 
+  if (WIFIcard.begin(true, REG_ON, WL_IRQ, -1) == true) { 
     WIFIcard.wifiSetup(); // Only needed for wifi scan usage
     WIFIcard.postInitSettings();
     Serial.println("initialization done");
