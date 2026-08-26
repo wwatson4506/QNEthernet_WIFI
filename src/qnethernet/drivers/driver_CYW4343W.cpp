@@ -4,7 +4,7 @@
 
 #ifdef QNETHERNET_INTERNAL_DRIVER_CYW4343W
 
-#pragma message("Using CYW4343W QNEthernet Driver")
+#pragma message("Using CYW4343Wx QNEthernet Driver")
 
 // C++ includes
 #include <atomic>
