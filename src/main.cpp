@@ -4,8 +4,8 @@
 // main.cpp is a testing playground for this library.
 // This file is part of the QNEthernet library.
 
-// Define MAIN_TEST_PROGRAM to use this test program.
-#if defined(MAIN_TEST_PROGRAM) && !defined(PIO_UNIT_TESTING)
+// Define QNETHERNET_MAIN_TEST_PROGRAM to use this test program.
+#if defined(QNETHERNET_MAIN_TEST_PROGRAM) && !defined(PIO_UNIT_TESTING)
 
 // C++ includes
 #include <chrono>
@@ -16,13 +16,13 @@
 #include <Arduino.h>
 
 #include "QNEthernet.h"
+#include "qnethernet/chrono/chrono_clocks.h"
 #include "qnethernet/compat/c++11_compat.h"
-#include "qnethernet/util/chrono_clocks.h"
 
 using namespace qindesign::network;
 
-using steady_clock = qindesign::network::util::steady_clock_ms;
-using high_resolution_clock = qindesign::network::util::arm_high_resolution_clock;
+using steady_clock = qindesign::chrono::steady_clock_ms;
+using high_resolution_clock = qindesign::chrono::arm_high_resolution_clock;
 
 // Startup delay, in milliseconds.
 static constexpr uint32_t kStartupDelay = 2000;
@@ -86,7 +86,7 @@ void setup() {
   });
 
   Ethernet.onAddressChanged([]() {
-    IPAddress ip = Ethernet.localIP();
+    const IPAddress ip = Ethernet.localIP();
     const bool hasIP = (ip != INADDR_NONE);
     if (hasIP) {
       IPAddress subnet = Ethernet.subnetMask();
@@ -259,4 +259,4 @@ static void clientConnect() {
 #endif  // LWIP_TCP
 }
 
-#endif  // MAIN_TEST_PROGRAM && !PIO_UNIT_TESTING
+#endif  // defined(QNETHERNET_MAIN_TEST_PROGRAM) && !defined(PIO_UNIT_TESTING)

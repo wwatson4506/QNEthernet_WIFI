@@ -12,6 +12,9 @@
 #include <cstdint>
 #include <functional>
 
+#ifdef ARDUINO_ARCH_STM32
+#include <Arduino.h>  // STM32's Arduino needs this for namespace arduino
+#endif  // ARDUINO_ARCH_STM32
 #include <IPAddress.h>
 
 #include "lwip/apps/mdns_opts.h"
@@ -60,7 +63,7 @@ class EthernetClass final {
 
   // Returns a string containing the library version number.
   static const char* libraryVersion() {
-    return "0.37.0-snapshot";
+    return "0.38.0-snapshot";
   }
 
   // Returns the maximum number of multicast groups. Note that mDNS will use

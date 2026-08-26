@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: (c) 2021-2025 Shawn Silverman <shawn@pobox.com>
+// SPDX-FileCopyrightText: (c) 2021-2026 Shawn Silverman <shawn@pobox.com>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 // lwipopts.h is the lwIP configuration.
@@ -145,7 +145,7 @@ void qnethernet_hal_check_core_locking(const char* file, int line,
 
 // RAW options
 #ifndef LWIP_RAW
-#define LWIP_RAW (QNETHERNET_ENABLE_PING_SEND)  /* 0 */
+#define LWIP_RAW ((QNETHERNET_ENABLE_PING_SEND) && (LWIP_IPV4))  /* 0 */
 #endif  // LWIP_RAW
 // #define RAW_TTL  IP_DEFAULT_TTL
 
