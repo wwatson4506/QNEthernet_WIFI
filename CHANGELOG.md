@@ -8,6 +8,31 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [0.37.0]
+
+### Changed
+* Moved chrono utilities to the `qindesign::chrono` namespace.
+* Changed `MAIN_TEST_PROGRAM` to `QNETHERNET_MAIN_TEST_PROGRAM` to detect main
+  program inclusion.
+* Now starting with MIB counters (RFC 2819) disabled.
+* Updated the project to use registers and functions from the `imxrt1060-regs`
+  library, obviating the need for `imxrt.h`.
+* Improved _SNTPClient_ example to retry sending SNTP requests until a response
+  is received
+* Added `stratum < 16` check to _SNTPClient_ example and updated the
+  RFC reference.
+
+### Fixed
+* Fixed a `pbuf` copy error in `ByteBuffer::read(pbuf*)`.
+* Fixed W5500 input processing to skip the rest of the frame if a `pbuf` could
+  not be allocated.
+* Fixed `Ping` to use the current header size instead of a constant.
+* Moved essential operations out of LWIP_ASSERT() statements because
+  LWIP_NOASSERT may be defined.
+* Fixed W5500 driver `ETH_PAD_SIZE` handling.
+* Fixed STM32 Arduino core 3.0.0 builds. Arduino classes are in the `arduino`
+  namespace; `Arduino.h` was included for this architecture.
+
 ## [0.36.0]
 
 ### Added
