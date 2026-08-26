@@ -62,54 +62,69 @@ class ByteBuffer {
   // If this returns an error (not ERR_OK) then the buffer's size is
   // not reduced.
   ATTRIBUTE_NODISCARD
-  err_t read(pbuf* const p) {
-    if (p->tot_len > size()) {
+  err_t read(pbuf* const p, const size_t pbufOffset = 0) {
+    if (p->tot_len < pbufOffset) {
+      return ERR_ARG;
+    }
+    const size_t pSize = p->tot_len - pbufOffset;
+
+    if (pSize > size()) {
       return ERR_BUF;
+    }
+    if (pSize == 0) {
+      return ERR_OK;
     }
 
     const size_t start = tail_ % capacity();
-    const size_t newTail = (tail_ + p->tot_len) % capacity();
+    const size_t newTail = (tail_ + pSize) % capacity();
     const size_t end = newTail;
 
     err_t err;
     if (start < end) {
-      err = pbuf_take(p, &buf_[start], p->tot_len);
+      err = pbuf_take_at(p, &buf_[start], pSize, pbufOffset);
     } else {
+      const uint16_t firstSize = static_cast<uint16_t>(capacity() - start);
       // It's safe to cast the sizes to uint16_t because the frame sizes are
       // limited to UINT16_MAX
-      err =
-          pbuf_take(p, &buf_[start], static_cast<uint16_t>(capacity() - start));
-      if (err == ERR_OK) {
+      err = pbuf_take_at(p, &buf_[start], firstSize, pbufOffset);
+      if ((err == ERR_OK) && (end != 0)) {
+        // This fails if the offset is beyond the end, even if length is zero
         err = pbuf_take_at(p, &buf_[0], static_cast<uint16_t>(end),
-                           static_cast<uint16_t>(capacity() - start));
+                           firstSize + pbufOffset);
       }
     }
     if (err == ERR_OK) {
       tail_ = newTail;
-      size_ -= p->tot_len;
+      size_ -= pSize;
     }
 
     return err;
   }
 
+  // Reads data from the buffer into the given memory and returns the actual
+  // size read. If 'buf' is NULL then the bytes are skipped.
   ATTRIBUTE_NODISCARD
   size_t read(void* const buf, size_t size) {
-    uint8_t* const bytes = static_cast<uint8_t*>(buf);
-
     size = std::min(size, this->size());
     if (size == 0) {
       return 0;
     }
 
-    const size_t start = tail_ % capacity();
-    tail_ = (tail_ + size) % capacity();
-    const size_t end = tail_;
-
-    if (start < end) {
-      std::copy_n(&buf_[start], size, &bytes[0]);
+    if (buf == nullptr) {
+      tail_ = (tail_ + size) % capacity();
     } else {
-      std::copy_n(&buf_[start], capacity() - start, &bytes[0]);
-      std::copy_n(&buf_[0], end, &bytes[capacity() - start]);
+      uint8_t* const bytes = static_cast<uint8_t*>(buf);
+
+      const size_t start = tail_ % capacity();
+      tail_ = (tail_ + size) % capacity();
+      const size_t end = tail_;
+
+      if (start < end) {
+        std::copy_n(&buf_[start], size, &bytes[0]);
+      } else {
+        std::copy_n(&buf_[start], capacity() - start, &bytes[0]);
+        std::copy_n(&buf_[0], end, &bytes[capacity() - start]);
+      }
     }
 
     size_ -= size;
@@ -117,6 +132,8 @@ class ByteBuffer {
     return size;
   }
 
+  // Copies data from the given memory into the buffer and returns the actual
+  // number of bytes written.
   ATTRIBUTE_NODISCARD
   size_t write(const void* const buf, size_t size) {
     const uint8_t* const bytes = static_cast<const uint8_t*>(buf);
@@ -142,6 +159,7 @@ class ByteBuffer {
     return size;
   }
 
+  // Clears the buffer.
   void clear() {
     size_ = 0;
     head_ = 0;

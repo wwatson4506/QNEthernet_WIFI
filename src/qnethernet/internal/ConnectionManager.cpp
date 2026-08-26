@@ -133,7 +133,7 @@ err_t ConnectionManager::recvFunc(void* const arg, struct altcp_pcb* const tpcb,
 
   holder->lastError = err;
 
-  struct pbuf* pNext = p;
+  const struct pbuf* pNext = p;
   const auto& state = holder->state;
 
   // Check for errors and null packets
@@ -184,13 +184,10 @@ err_t ConnectionManager::recvFunc(void* const arg, struct altcp_pcb* const tpcb,
     // Check that we can store all the data
     const size_t rem = v.capacity() - v.size() + state->bufPos;
     if (rem < p->tot_len) {
-      static_assert((std::numeric_limits<decltype(p->tot_len)>::max() <=
-                     std::numeric_limits<uint16_t>::max()),
-                    "Can't assume length doesn't overflow");
       // Note: Don't need to free the pbuf here because not returning
       //       ERR_OK or ERR_ABRT
-      altcp_recved(tpcb, static_cast<uint16_t>(rem));  // p->tot_len is u16_t
-      return ERR_INPROGRESS;  // ERR_MEM? Other?
+      // Do not free or acknowledge the pbuf; lwIP retains and retries it.
+      return ERR_MEM;
     }
 
     // If there isn't enough space at the end, move all the data in the buffer
@@ -388,9 +385,9 @@ optional<uint16_t> ConnectionManager::listen(const uint16_t port,
 
   uint16_t actualPort = port;
   if (port == 0) {
-    LWIP_ASSERT(
-        "Expected valid port",
-        altcp_get_tcp_addrinfo(pcb, 1, nullptr, &actualPort) == ERR_OK);
+    const err_t err = altcp_get_tcp_addrinfo(pcb, 1, nullptr, &actualPort);
+    LWIP_ASSERT("Expected valid port", err == ERR_OK);
+    (void)err;
   }
   return {true, actualPort};
 }
@@ -402,8 +399,9 @@ static uint16_t getLocalPort(struct altcp_pcb* pcb) {
   return altcp_get_port(pcb, 1);
 #else
   uint16_t port;
-  LWIP_ASSERT("Expected valid port",
-              altcp_get_tcp_addrinfo(pcb, 1, nullptr, &port) == ERR_OK);
+  const err_t err = altcp_get_tcp_addrinfo(pcb, 1, nullptr, &port);
+  LWIP_ASSERT("Expected valid port", err == ERR_OK);
+  (void)err;
   return port;
 #endif  // LWIP_ALTCP
 }
@@ -549,7 +547,7 @@ void ConnectionManager::abortAll() {
 }
 
 void ConnectionManager::iterateConnections(
-    std::function<void(struct altcp_pcb* pcb)> f) {
+    const std::function<void(struct altcp_pcb* pcb)>& f) {
   if (connections_.empty()) {
     return;
   }
@@ -572,7 +570,7 @@ void ConnectionManager::iterateConnections(
 }
 
 void ConnectionManager::iterateListeners(
-    std::function<void(struct altcp_pcb* pcb)> f) {
+    const std::function<void(struct altcp_pcb* pcb)>& f) {
   if (listeners_.empty()) {
     return;
   }
