@@ -16,6 +16,9 @@
 #include <functional>
 #include <vector>
 
+#ifdef ARDUINO_ARCH_STM32
+#include <Arduino.h>  // STM32's Arduino needs this for namespace arduino
+#endif  // ARDUINO_ARCH_STM32
 #include <IPAddress.h>
 
 #include "lwip/ip_addr.h"
@@ -60,7 +63,7 @@ class Ping final {
   Ping() = default;
 
   // Creates a new Ping object with the given reply callback.
-  Ping(replyf f)
+  Ping(const replyf f)
       : replyf_(f) {}
 
   ~Ping() noexcept;
@@ -72,7 +75,7 @@ class Ping final {
   Ping& operator=(Ping&&) noexcept = default;
 
   // Sets the callback to the given function.
-  void setCallback(replyf f) {
+  void setCallback(const replyf f) {
     replyf_ = f;
   }
 

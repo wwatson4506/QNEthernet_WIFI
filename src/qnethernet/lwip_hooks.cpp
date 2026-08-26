@@ -40,9 +40,10 @@ uint32_t calc_tcp_isn(const ip_addr_t* const local_ip,
                       const uint16_t remote_port) {
   if (!s_haveKey) {
     // Initialize the key
-    LWIP_ASSERT(
-        "Entropy generation error",
-        qnethernet_hal_fill_entropy(s_key, sizeof(s_key)) == sizeof(s_key));
+    const size_t filled = qnethernet_hal_fill_entropy(s_key, sizeof(s_key));
+    if (filled != sizeof(s_key)) {
+      LWIP_PLATFORM_ASSERT("Entropy generation error");
+    }
     s_haveKey = true;
   }
 
@@ -56,7 +57,7 @@ uint32_t calc_tcp_isn(const ip_addr_t* const local_ip,
   pMsg += sizeof(ip_addr_t);
   (void)std::memcpy(pMsg, local_ip, sizeof(ip_addr_t));
 
-  uint32_t hash = static_cast<uint32_t>(
+  const uint32_t hash = static_cast<uint32_t>(
       qindesign::security::siphash(2, 4, s_key, s_msg, sizeof(s_msg)));
   return hash + qnethernet_hal_micros();
 }

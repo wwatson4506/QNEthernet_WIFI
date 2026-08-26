@@ -78,7 +78,7 @@ static bool s_initialized = false;
 static bool s_netifAdded = false;
 
 FLASHMEM MDNSClass::~MDNSClass() noexcept {
-  int lastErrno = errno;
+  const int lastErrno = errno;
   end();
   errno = lastErrno;  // Because end() may have set it
 }
@@ -199,8 +199,10 @@ bool MDNSClass::addService(const char* const name, const char* const type,
     return false;
   } else if (static_cast<size_t>(slot) >= maxServices()) {
     // Remove if the addition was successful but we couldn't add it
-    LWIP_ASSERT("Can't delete service",
-                mdns_resp_del_service(netif_, slot) == ERR_OK);
+    const err_t err = mdns_resp_del_service(netif_, slot);
+    if (err != ERR_OK) {
+      LWIP_PLATFORM_ASSERT("Can't delete service");
+    }
     errno = ENOBUFS;
     return false;
   }
