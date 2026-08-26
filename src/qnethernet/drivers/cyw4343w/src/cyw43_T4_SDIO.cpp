@@ -35,37 +35,42 @@
 
 //Remove this define to use built-in internal LPO in 4343W
 //#define USE_EXTERNAL_LPO
-
+void cwydump(unsigned char *memory, unsigned int len);
+#if WIFI_DEVICE == CYW4343W
+//==============================================================================
+// CYW4343W firmware files.
 //==============================================================================
 ///////////////
-//Firmware file
+//Firmware file 
 ///////////////
-//#include "../firmware/brcmfmac43430-sdio.c"                // Zero: Firmware wl0: Oct 23 2017 03:55:53 version 7.45.98.38 (r674442 CY) FWID 01-e58d219f
-//#include "../firmware/w4343WA1_7_45_98_50_combined.h"      // CYW43: Firmware wl0: Apr 30 2018 04:14:19 version 7.45.98.50 (r688715 CY) FWID 01-283fcdb9
-//#include "../firmware/w4343WA1_7_45_98_102_combined.h"     // CYW43: Firmware wl0: Jun 18 2020 08:48:22 version 7.45.98.102 (r726187 CY) FWID 01-36dd36be
-//#include "../firmware/brcmfmac43430-sdio-armbian.c"        // Firmware wl0: Mar 30 2021 01:12:21 version 7.45.98.118 (7d96287 CY) FWID 01-32059766
-#include "../firmware/CYW4343W_SDIO_bin.c"                   // Firmware wl0: Mar 30 2021 01:12:21 version 7.45.98.118 (7d96287 CY) FWID 01-32059766
-//#include "../firmware/cyfmac43430_fmac_7_45_98_125-sdio.c" // fmac:  Firmware wl0: Aug 16 2022 03:05:14 version 7.45.98.125 (5b7978c CY) FWID 01-f420b81d
-//==============================================================================
-
-//==============================================================================
+#include "../firmware/CYW4343W_SDIO_bin.c"
 ////////////
 //NVRAM file
 /////////////
-//#include "../firmware/wifi_nvram_4343W_zero.h"
 #include "../firmware/wifi_nvram_1dx.h"
-//==============================================================================
-
-//==============================================================================
 //////////
 //CLM file
 //////////
-//#include "../firmware/cyfmac43430-sdio-1DX-clm_blob.c"
-//#include "../firmware/cyfmac43430-sdio-1DX-clm_blob.h"
 #include "../firmware/CYW4343W_clm_blob.c"
 //==============================================================================
-
-
+#else
+//==============================================================================
+// CYW43439 Firmware files.
+//==============================================================================
+///////////////
+//Firmware file 
+///////////////
+#include "../firmware/FW_43439-bin.c"
+//////////
+//CLM file
+//////////
+#include "../firmware/CLM_43439-bin.c"
+////////////
+//NVRAM file
+/////////////
+#include "../firmware/wifi_43439_NVRAM.h"
+//==============================================================================
+#endif
 //==============================================================================
 // MAC address stuff.
 //==============================================================================
@@ -79,6 +84,7 @@ uint8_t my_mac[MACLEN];    // Internal MAC usage.
 W4343WCard *W4343WCard::s_pSdioCards[2] = {nullptr, nullptr}; // uSDHC1, uSDHC2.
 volatile bool W4343WCard::dataISRReceived = false; // Data received ISR flag.
 volatile bool W4343WCard::fUseSDIO2 = false; // true = use SDIO2, false = use SDIO1.
+static  int display_mode = 0; // Debug Mode.
 
 //==============================================================================
 // Error function and macro.
@@ -499,6 +505,7 @@ bool W4343WCard::cardCommand(uint32_t xfertyp, uint32_t arg) {
 //==============================================================================
 // 
 //==============================================================================
+
 void W4343WCard::enableDmaIrs() {
   m_dmaBusy = true;
   m_irqstat = 0;
@@ -562,30 +569,6 @@ bool W4343WCard::isBusyCommandInhibit() {
 //==============================================================================
 
 //==============================================================================
-// Check if data busy.
-//==============================================================================
-bool W4343WCard::isBusyDat() {
-  return m_psdhc->PRES_STATE & (1 << 24) ? false : true;
-}
-//==============================================================================
-
-//==============================================================================
-// Check if read FIFO is busy.
-//==============================================================================
-bool W4343WCard::isBusyFifoRead() {
-  return !(m_psdhc->PRES_STATE & SDHC_PRSSTAT_BREN);
-}
-//==============================================================================
-
-//==============================================================================
-// Check if write FIFO is busy.
-//==============================================================================
-bool W4343WCard::isBusyFifoWrite() {
-  return !(m_psdhc->PRES_STATE & SDHC_PRSSTAT_BWEN);
-}
-//==============================================================================
-
-//==============================================================================
 // Check if transfer is finished.
 //==============================================================================
 bool W4343WCard::isBusyTransferComplete() {
@@ -639,30 +622,6 @@ bool W4343WCard::waitTimeout(pcheckfcn fcn) {
 //==============================================================================
 
 //==============================================================================
-// Wait for transfer to complete up to timeout.
-//==============================================================================
-bool W4343WCard::waitTransferComplete() {
-  if(!m_transferActive) {
-    return true;
-  }
-  uint32_t m = micros();
-  bool timeOut = false;
-  while(isBusyTransferComplete()) {
-    if ((micros() - m) > BUSY_TIMEOUT_MICROS) {
-      timeOut = true;
-      break;
-    }
-  }
-  m_transferActive = false;
-  m_irqstat = m_psdhc->INT_STATUS;
-  m_psdhc->INT_STATUS = m_irqstat;
-  if(timeOut || (m_irqstat & SDHC_IRQSTAT_ERROR)) {
-    return wifiError(WIFI_CARD_ERROR_TRANSFER_COMPLETE);
-  }
-  return true;
-}
-
-//==============================================================================
 // Enable WIFI card SDIO function.
 //==============================================================================
 bool W4343WCard::SDIOEnableFunction(uint8_t functionEnable) {
@@ -692,7 +651,7 @@ bool W4343WCard::SDIOEnableFunction(uint8_t functionEnable) {
 //==============================================================================
 // Disable WIFI card SDIO function.
 //==============================================================================
-bool W4343WCard::SDIODisableFunction(uint8_t functionEnable) {
+bool W4343WCard::SDIODisableFunction(uint8_t functionEnable) { // Need to implement!!
   uint8_t readResponse;
 
   //Read existing register
@@ -862,12 +821,20 @@ bool W4343WCard::uploadNVRAM(size_t nvRAMSize, uintptr_t source) {
 //==============================================================================
 bool W4343WCard::uploadCLM() {
   brcmf_dload_data_le *chunk_buf;
-  int32_t datalen = FIRMWARE_CLM_LEN;
+#if WIFI_DEVICE == CYW43439
+  int32_t datalen = FIRMWARE_CLM_LEN_9;
+#else
+  int32_t datalen = FIRMWARE_CLM_LEN_W;
+#endif
   uint32_t cumulative_len = 0;
   uint32_t ret = 0;
 
 #if INIT_DEBUG_MODE == true
-  printf(SER_CYAN "Uploading CLM, size: %d\n" SER_RESET, sizeof(clm_data));
+  #if WIFI_DEVICE == CYW43439
+    printf(SER_CYAN "Uploading CLM, size: %d\n" SER_RESET, FIRMWARE_CLM_LEN_9);
+  #else
+    printf(SER_CYAN "Uploading CLM, size: %d\n" SER_RESET, FIRMWARE_CLM_LEN_W);
+  #endif
 #endif
   chunk_buf = (brcmf_dload_data_le *)malloc(sizeof(*chunk_buf) + MAX_CHUNK_LEN - 1);
   chunk_buf->dload_type = DL_TYPE_CLM;
@@ -880,13 +847,21 @@ bool W4343WCard::uploadCLM() {
     } else if(datalen <= MAX_CHUNK_LEN) {
 	  chunk_buf->flag |= DL_END;
 	}
-	memcpy(chunk_buf->data, clm_data + cumulative_len, chunk_buf->len);
+#if WIFI_DEVICE == CYW43439
+	memcpy(chunk_buf->data, clm_data_9 + cumulative_len, chunk_buf->len);
+#else
+	memcpy(chunk_buf->data, clm_data_4343W + cumulative_len, chunk_buf->len);
+#endif
 	ret = ioctl_set_data("clmload", 1500, chunk_buf, sizeof(brcmf_dload_data_le) + chunk_buf->len - 1, false);
 	cumulative_len += chunk_buf->len;
 	datalen -= chunk_buf->len;
   } while((datalen > 0) && (ret == 1));
 #if INIT_DEBUG_MODE == true
-  printf(SER_CYAN "CLM uploaded %ld/%d result: %ld\n" SER_RESET, cumulative_len, FIRMWARE_CLM_LEN, ret);
+  #if WIFI_DEVICE == CYW43439
+    printf(SER_CYAN "CLM uploaded %ld/%d result: %ld\n" SER_RESET, cumulative_len, FIRMWARE_CLM_LEN_9, ret);
+#else
+    printf(SER_CYAN "CLM uploaded %ld/%d result: %ld\n" SER_RESET, cumulative_len, FIRMWARE_CLM_LEN_W, ret);
+#endif
 #endif
   return ret;
 }
@@ -936,14 +911,10 @@ char *W4343WCard::getCLMVersion(void) {
 //==============================================================================
 void W4343WCard::postInitSettings() {
   ioctl_set_uint32("bus:txglom", 20, 0); // tx glomming off
-  //ioctl_set_uint32("bus:rxglom", 20, 0); // rx glomming off
+//  ioctl_set_uint32("bus:rxglom", 20, 0); // rx glomming off
   ioctl_set_uint32("apsta", 20, 1); // apsta on
-//==============================================================================
-// Upload CLM.
-//==============================================================================
+  // Upload CLM.
   uploadCLM();
-//==============================================================================
-
 #if INIT_DEBUG_MODE == true
   getCLMVersion();
 #endif
@@ -953,17 +924,18 @@ void W4343WCard::postInitSettings() {
 //==============================================================================
 // Class W4343WCard begin function.
 //==============================================================================
-bool W4343WCard::begin(bool useSDIO2, int8_t wlOnPin, int8_t wlIrqPin, int8_t extLPOPin) {
+bool W4343WCard::begin(bool SDIOused, int8_t wlOnPin, int8_t wlIrqPin, int8_t extLPOPin) {
   uint32_t kHzWiFiClk;
   m_curState = IDLE_STATE;
   m_initDone = false;
   m_errorCode = WIFI_CARD_ERROR_NONE;
   m_highCapacity = false;
   m_version2 = false;
-  fUseSDIO2 = useSDIO2;
+  fUseSDIO2 = SDIOused;
   m_wlIrqPin = wlIrqPin;
   uint8_t readResponse;
-  
+//printf("sizeof(firmware_clm) = %lu\n",sizeof(firmware_clm));
+//while(1);  
 #if INIT_DEBUG_MODE == true
   printf("===========================\nCYW4343W Card::begin: %s\n===========================\n",
                  fUseSDIO2 ? "SDIO2" : "SDIO");
@@ -1064,16 +1036,19 @@ bool W4343WCard::begin(bool useSDIO2, int8_t wlOnPin, int8_t wlIrqPin, int8_t ex
     printf(SER_RED "BUS_IORDY_REG (Ready indication) returned %d\n" SER_RESET, readResponse);
     return false;
   }
-  //////////////////////////////////////
-  //Included from SdFat init post CMD7//
-  //////////////////////////////////////
+
   //Set SDHC FIFO read/write water mark levels
   m_psdhc->WTMK_LVL = SDHC_WML_RDWML(FIFO_WML) | SDHC_WML_WRWML(FIFO_WML);
   //Set SDHC bus to 4-bits
   m_psdhc->PROT_CTRL &= ~SDHC_PROCTL_DTW_MASK;
   m_psdhc->PROT_CTRL |= SDHC_PROCTL_DTW(SDHC_PROCTL_DTW_4BIT);
   //Set the SDHC SCK frequency (33'000 seems to be the maximum working rate).
-  kHzWiFiClk = 33'000; //33'000; //25'000; //TODO 50'000
+  
+  // NOTE: The CYW43439 and CYW4343W may have issues at 50'000 KHz clock
+  //       speed if using long connecting wires.
+  //       If so, reduce to 33'000 KHz in "misc_defs.h".
+  kHzWiFiClk = KHZ_WIFI_CLK; //33'000 or 50'000.
+
   //Disable GPIO
   enableSDIO(false);
   //Set clock
@@ -1232,14 +1207,21 @@ bool W4343WCard::wifiSetup(void) {
 //==============================================================================
 // Validate and upload NVRAM 
 //==============================================================================
-  uploadFirmware(FIRMWARE_LEN, (uintptr_t)firmware_bin);
-  size_t wifi_nvram_len = sizeof(wifi_nvram) - 1;
-  uploadNVRAM(wifi_nvram_len, (uintptr_t)wifi_nvram);
+#if WIFI_DEVICE == CYW43439
+  uploadFirmware(FIRMWARE_LEN_9, (uintptr_t)firmware_bin_9);
+  size_t wifi_nvram_len = sizeof(wifi_nvram_9);
+  uintptr_t clm_p = reinterpret_cast<uintptr_t>(wifi_nvram_9); 
+  uploadNVRAM(wifi_nvram_len, clm_p);
+#else
+  uploadFirmware(FIRMWARE_LEN_W, (uintptr_t)firmware_4343W);
+  size_t wifi_nvram_len = sizeof(wifi_nvram_w);
+  uintptr_t clm_p = reinterpret_cast<uintptr_t>(wifi_nvram_w); 
+  uploadNVRAM(wifi_nvram_len, clm_p);
+#endif
 //==============================================================================
 
   // This prints the last 44 bytes of NVRAM upload. Comment out for now.
-  // cardCMD53_read(SD_FUNC_BAK, 0xFFD4, data, 44);
-
+   cardCMD53_read(SD_FUNC_BAK, 0xFFD4, data, 44);
   //[19.146150]
   backplaneWindow_read32(SRAM_IOCTRL_REG, &u32d.uint32); 
   backplaneWindow_read32(SRAM_RESETCTRL_REG, &u32d.uint32);
@@ -1344,15 +1326,6 @@ int W4343WCard::ioctl_set_uint32(const char * name, int wait_msec, uint32_t val)
 //==============================================================================
 
 //==============================================================================
-// Set 2 integers in IOCTL variable Added 02-21-25 WW
-//==============================================================================
-int W4343WCard::ioctl_set_intx2(const char *name, int wait_msec, int32_t val1, int32_t val2) {
-  int32_t data[2] = {val1, val2};
-  return ioctl_cmd(WLC_SET_VAR, name, wait_msec, 1, data, 8);
-}
-//==============================================================================
-
-//==============================================================================
 // IOCTL write with integer parameter
 //==============================================================================
 int W4343WCard::ioctl_wr_int32(int cmd, int wait_msec, int val) {
@@ -1375,13 +1348,6 @@ int W4343WCard::ioctl_set_data(const char *name, int wait_msec, void *data, int 
 }
 
 //==============================================================================
-// Set data block in IOCTL variable, using variable name that has data
-//==============================================================================
-int W4343WCard::ioctl_set_data2(char *name, int wait_msec, void *data, int len, bool logOutput) {
-    return ioctl_cmd(WLC_SET_VAR, name, wait_msec, 1, data, len, logOutput);
-}
-
-//==============================================================================
 // IOCTL write data - added 02-20-25 WW
 //==============================================================================
 int W4343WCard::ioctl_wr_data(int cmd, int wait_msec, void *data, int len) {
@@ -1394,6 +1360,7 @@ int W4343WCard::ioctl_wr_data(int cmd, int wait_msec, void *data, int len) {
 int W4343WCard::ioctl_rd_data(int cmd, int wait_msec, void *data, int len) {
     return(ioctl_cmd(cmd, 0, wait_msec, 0, data, len));
 }
+
 //==============================================================================
 
 bool had_successful_packet = false;
@@ -1493,7 +1460,7 @@ int W4343WCard::ioctl_cmd_poll_device(int wait_msec, int wr, void *data, int dle
       // Exit if error response
       if(ret && (rsp->cmd.flags & 1)) {
         ret = 0;
-        printf(SER_ERROR "Error flag set\n" SER_RESET);
+        printf("Error flag set\n");
         break;
       }
       // If OK, copy data to buffer
@@ -1537,7 +1504,7 @@ void W4343WCard::ioctl_err_display(int retval) {
     char *cmds = iohp->cmd==WLC_GET_VAR ? (char *)"GET" : 
                  iohp->cmd==WLC_SET_VAR ? (char *)"SET" : (char *)"";
     char *data, *name;
-*/    
+*/   
     if(retval <= 0) {
 //        data = (char *)&msgp->data[msgp->cmd.sdpcm.hdrlen+sizeof(IOCTL_HDR)];
 //        name = iohp->cmd==WLC_GET_VAR || iohp->cmd==WLC_SET_VAR ? data : (char *)"";
@@ -1546,9 +1513,6 @@ void W4343WCard::ioctl_err_display(int retval) {
     }
 }
 //==============================================================================
-////////////////////////
-// End IRW new functions
-////////////////////////
 
 //==============================================================================
 // Return last error.
@@ -1589,90 +1553,6 @@ void W4343WCard::printResponse(bool return_value) {
   printf("RSP: 0x%4.4lX  0x%4.4lX  0x%4.4lX  0x%4.4lX   RET: 0x%02X\n",
           m_psdhc->CMD_RSP0, m_psdhc->CMD_RSP1, m_psdhc->CMD_RSP2,
           m_psdhc->CMD_RSP3, return_value);
-}
-//==============================================================================
-
-//==============================================================================
-// print MAC address. (Does not include CRLF).
-//==============================================================================
-void W4343WCard::printMACAddress(uint8_t * data) {
-  printf("BSSID - ");
-  for (uint8_t i = 0; i < 6; i++) {
-    printf("%s%02X", i ? ":" : "", data[i]);
-  }
-}
-//==============================================================================
-
-//==============================================================================
-// Display SSID. (Does not include CRLF).
-//==============================================================================
-void W4343WCard::printSSID(uint8_t * data) {
-  int i = *data++;
-
-  if (i == 0 || *data == 0) {
-    printf(" SSID: '[hidden]'");
-  } else if (i <= SSID_MAXLEN) {
-    printf(" SSID: '");
-    while (i-- > 0) {
-      char c = static_cast<char>(*data++); 
-      printf("%c",c);
-    }
-    printf("'");
-  } else {
-    printf("[invalid length %u]", i);
-  }
-}
-//==============================================================================
-
-//==============================================================================
-// Display fields in structure Added 02-21-25. WW
-// Fields in descriptor are num:id (little-endian) or num:id (big_endian)
-//==============================================================================
-void W4343WCard::disp_fields(void *data, char *fields, int maxlen) {
-  char *strs=fields, delim=0;
-  uint8_t *dp = (uint8_t *)data;
-  int n, dlen;
-  int val;
-    
-  while(*strs && dp-(uint8_t *)data<maxlen) {
-    dlen = 0;
-    while(*strs>='0' && *strs<='9') // Check for numeric value digit
-            dlen = dlen*10 + *strs++ - '0'; 
-    delim = *strs++;
-    if(*strs > ' ') {
-      while(*strs >= '0') printf("%c",*strs++);
-      printf("%c",'=');
-      if(dlen <= 4) {
-        val = 0;
-        for(n=0; n<dlen; n++) {
-          val |= (uint32_t)(*dp++) << ((delim==':' ? n : dlen-n-1) * 8);
-        }
-        printf("%02X ", val);
-      } else {
-        for(n=0; n<dlen; n++) printf("%02X", *dp++);
-          printf("%c",' ');
-      }
-    } else dp += dlen;
-    while(*strs == ' ') strs++;
-  }
-}
-//==============================================================================
-
-int display_mode = 0; // Debug Mode.
-
-//==============================================================================
-// Display block of data added 02-21-25
-//==============================================================================
-void W4343WCard::disp_block(uint8_t *data, int len) {
-  int i=0, n;
-
-  while(i < len) {
-    if(i > 0) printf("\n");
-      n = MIN(len-i, DISP_BLOCKLEN);
-      disp_bytes(&data[i], n);
-      i += n;
-      fflush(stdout);
-  }
 }
 //==============================================================================
 
@@ -1739,7 +1619,6 @@ void waitInput() {
 //==============================================================================
 
 //==============================================================================
-void cwydump(unsigned char *memory, unsigned int len);
 void cwydump(unsigned char *memory, unsigned int len) {
   unsigned int	i=0, j=0;
   unsigned char	c=0;

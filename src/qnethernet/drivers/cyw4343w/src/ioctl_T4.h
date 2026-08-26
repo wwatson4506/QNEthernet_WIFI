@@ -37,7 +37,7 @@
 #define IOCTL_POLL_MSEC     2
 
 #define IOCTL_WAIT          30      // Time to wait for ioctl response (msec)
-#define IOCTL_WAIT_USEC     2000
+#define IOCTL_WAIT_USEC     2000 //2000
 #define MAX_CHUNK_LEN       400
 
 #define IOCTL_MAX_BLKLEN_T4 512  // cyw43_T4_SDIO needs this.

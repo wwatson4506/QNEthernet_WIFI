@@ -21,6 +21,7 @@
 // SOFTWARE.
 // =====================================================================
 // = Modified for testing with Dogbone06 CYW4343W board and T4.1/DB5   =
+// = and Sparkfun CYW43439 shield.                                     =
 // =====================================================================
 #ifndef MISC_DEFS_H
 #define MISC_DEFS_H
@@ -30,6 +31,49 @@
 #endif
 #ifndef MAX
 #define MAX(a,b) (((a)>(b))?(a):(b))
+#endif
+
+//==============================================================================
+// Select WIFI device being used using one of the defines below.
+// CYW43439 is default device.
+//==============================================================================
+#define CYW43439 0 // For the Sparkfun CYW43439 shield.
+#define CYW4343W 1 // For the dogbone06 CYW4343W board.
+
+#define WIFI_DEVICE CYW43439 // Default CYW43439
+//==============================================================================
+
+//==============================================================================
+// Begin parameters defines:
+// SDIO1 (false), SDIO2 (true) which uSDHC IF to use.
+// WL_REG_ON pin
+// WL_IRQ pin (-1 to ignore)
+// EXT_LPO pin (optional, -1 to ignore)
+// WIFIcard.begin(true, 33, 34, -1) for CYW4343W board or 
+// WIFIcard.begin(true, 30, 29, -1) for CYW43439 board. 
+//==============================================================================
+#if WIFI_DEVICE == CYW43439 
+#define REG_ON 30
+#define WL_IRQ 29
+#define EXT_LPO -1
+//#define BT_ON ??
+#endif
+#if WIFI_DEVICE == CYW4343W
+#define REG_ON 33
+#define WL_IRQ 34
+#define EXT_LPO -1
+#endif
+
+//==============================================================================
+// Un-comment to enable multicast.
+//==============================================================================
+#if WIFI_DEVICE == CYW43439 
+#define KHZ_WIFI_CLK  33000; // Max SDHC speed for CYW43439 will work 50000 KHz with
+                             // short connections to T4.1.
+#endif
+#if WIFI_DEVICE == CYW4343W 
+#define KHZ_WIFI_CLK  33000; //Max SDHC speed for CYW4343W may work 50000 KHz with
+                             // short connections to T4.1. (Not Tested)
 #endif
 
 //==============================================================================
@@ -56,19 +100,6 @@
 // Show hidden sites during scan.
 //==============================================================================
 #define SHOW_HIDDEN false
-
-//==============================================================================
-// Begin parameters defines:
-// SDIO1 (false), SDIO2 (true) which uSDHC IF to use.
-// WL_REG_ON pin
-// WL_IRQ pin (-1 to ignore)
-// EXT_LPO pin (optional, -1 to ignore)
-// WIFIcard.begin(true, 33, 34, -1)
-//==============================================================================
-#define REG_ON 33
-#define WL_IRQ 34
-#define EXT_LPO -1
-//#define BT_ON ??
 
 //==============================================================================
 // SD function numbers

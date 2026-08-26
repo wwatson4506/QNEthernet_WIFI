@@ -8,7 +8,6 @@
 extern W4343WCard WIFIcard;
 extern EVENT_INFO event_info;
 Event joinevt;
-
 EVT_STR no_evts[] = NO_EVTS;
 EVT_STR join_evts[] = JOIN_EVTS;
 
@@ -78,7 +77,7 @@ bool Join::join_start(const char *ssID, const char *passphrase, int security) {
     CHECK(WIFIcard.ioctl_wr_int32, WLC_SET_WSEC, 0, 0);
     CHECK(WIFIcard.ioctl_wr_int32, WLC_SET_WPA_AUTH, 0, 0);
   }
-  if (joinevt.ioctl_enable_evts(join_evts) == true) {
+  if (joinevt.ioctl_enable_evts(join_evts) > 0) {
 #if INIT_DEBUG_MODE == true
     printf(SER_TRACE "Join events enabled\n" SER_RESET);
 #endif
@@ -86,6 +85,7 @@ bool Join::join_start(const char *ssID, const char *passphrase, int security) {
     printf(SER_RED "Join events not enabled\n" SER_RESET);
     return false;
   }
+  delayMicroseconds(50000);
   CHECK(WIFIcard.ioctl_wr_data, WLC_SET_SSID, 100, &ssid, sizeof(ssid));
 #if USE_MCAST == true 
   // Enable multicast
@@ -122,6 +122,7 @@ bool Join::join_restart(const char *ssid, const char *passwd, int security) {
         WIFIcard.ioctl_set_uint32((char *)"bcn_li_bcn", IOCTL_WAIT, 0x01) > 0 &&
         WIFIcard.ioctl_set_uint32((char *)"bcn_li_dtim", IOCTL_WAIT, 0x01) > 0 &&
         WIFIcard.ioctl_set_uint32((char *)"assoc_listen", IOCTL_WAIT, 0x0a) > 0;
+
 /*
 #if POWERSAVE    
     // Enable power saving
@@ -133,6 +134,7 @@ bool Join::join_restart(const char *ssid, const char *passwd, int security) {
         WIFIcard.ioctl_wr_int32(WLC_SET_INFRA, 50, 1) > 0 &&
         WIFIcard.ioctl_wr_int32(WLC_SET_AUTH, IOCTL_WAIT, 0) > 0;
   if(security != 0) {
+
     ret = ret &&
           WIFIcard.ioctl_wr_int32(WLC_SET_WSEC, IOCTL_WAIT, security==2 ? 6 : 2) > 0 &&
           WIFIcard.ioctl_set_data((char *)"bsscfg:sup_wpa", IOCTL_WAIT, (void *)"\x00\x00\x00\x00\x01\x00\x00\x00", 8) > 0 &&
@@ -200,6 +202,7 @@ void Join::join_state_poll(const char *ssid, const char *passwd, int security) {
     eip->link = 0;
     eip->join = JOIN_JOINING;
     WIFIcard.ustimeout(&join_ticks, 0);
+
     join_restart(s, p, security);
   } else if(eip->join == JOIN_JOINING) {
     if(link_check() > 0) {

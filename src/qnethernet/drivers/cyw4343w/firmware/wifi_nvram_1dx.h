@@ -1,6 +1,6 @@
 #include <Arduino.h>
 
-PROGMEM static const uint8_t wifi_nvram[] =
+PROGMEM static const uint8_t wifi_nvram_w[] =
 "manfid=0x2d0\0"
 "prodid=0x0726\0"
 "vendid=0x14e4\0"

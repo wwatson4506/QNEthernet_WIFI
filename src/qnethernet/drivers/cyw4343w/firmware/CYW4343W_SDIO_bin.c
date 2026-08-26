@@ -26,9 +26,9 @@ extern "C" {
 #endif
 #include <Arduino.h>
 
-#define FIRMWARE_LEN 419798
+#define FIRMWARE_LEN_W 419798
 
-PROGMEM const unsigned char firmware_bin[] = {
+PROGMEM const unsigned char firmware_4343W[] = {
         0, 0, 0, 0, 237, 33, 0, 0, 25, 33, 0, 0, 25, 33, 0, 0, 25, 33, 0, 0,
         25, 33, 0, 0, 25, 33, 0, 0, 25, 33, 0, 0, 25, 33, 0, 0, 25, 33, 0, 0,
         25, 33, 0, 0, 25, 33, 0, 0, 25, 33, 0, 0, 25, 33, 0, 0, 25, 33, 0, 0,

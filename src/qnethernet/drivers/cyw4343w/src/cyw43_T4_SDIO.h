@@ -19,6 +19,13 @@
 #define WIFI_MAX_INIT_RATE_KHZ 400
 #endif  // WIFI_MAX_INIT_RATE_KHZ
 /**/
+/*
+#define CHECK(f, a, ...) {if (f(a, __VA_ARGS__) == false) {\
+                          printf(SER_RED "\nError: %s(%s ...)\n" SER_RESET, #f, #a);}\
+                        else {\
+                          printf(SER_TRACE "\nSuccess: %s(%s ...)\n" SER_RESET, #f, #a);}\
+                        }
+*/
 #define CHECK(f, a, ...) /*{if (f(a, __VA_ARGS__) == false) {\*/
                           /*printf(SER_RED "\nError: %s(%s ...)\n" SER_RESET, #f, #a);}\*/
                         /*else {\*/
@@ -30,20 +37,11 @@ class W4343WCard;
  * \class W4343WCard
  * \brief Raw SDIO access to SD and SDHC flash memory cards.
  */
-class W4343WCard { //: public Event , public T4_SDIO {
+class W4343WCard {
  public:
-  /** Initialize the WIFI card.
-  * \param[in] useSDIO2 WIFI card configuration.
-  * \return true for success or false for failure.
-  */
-  bool begin(bool useSDIO2, int8_t wlOnPin, int8_t wlIrqPin, int8_t extLPOPin = -1);
 
-#ifndef DOXYGEN_SHOULD_SKIP_THIS
-  uint32_t __attribute__((error("use sectorCount()"))) cardSize();
-#endif  // DOXYGEN_SHOULD_SKIP_THIS
-  /**
-  * \return code for the last error. See SdCardInfo.h for a list of error codes.
-  */
+  bool begin(bool SDIOused, int8_t wlOnPin, int8_t wlIrqPin, int8_t extLPOPin = -1);
+
   uint8_t errorCode() const;
   /** \return error data for last error. */
   uint32_t errorData() const;
@@ -66,8 +64,6 @@ class W4343WCard { //: public Event , public T4_SDIO {
   ///////////////////////////////
   
   bool wifiSetup(void);
-  void disp_fields(void *data, char *fields, int maxlen);
-  void disp_block(uint8_t *data, int len);
   void disp_bytes(uint8_t *data, int len);
   void disp_bytes(int mask, uint8_t *data, int len);
   void display(int mask, const char* fmt, ...);
@@ -87,11 +83,9 @@ class W4343WCard { //: public Event , public T4_SDIO {
 
   int ioctl_get_uint32(const char * name, int wait_msec,  uint8_t *data);
   int ioctl_set_uint32(const char *name, int wait_msec, uint32_t val);
-  int ioctl_set_intx2(const char *name, int wait_msec, int32_t val1, int32_t val2);
   int ioctl_wr_int32(int cmd, int wait_msec, int val);
   int ioctl_get_data(const char *name, int wait_msec, uint8_t *data, int dlen, bool logOutput = false);
   int ioctl_set_data(const char *name, int wait_msec, void *data, int len, bool logOutput = false);
-  int ioctl_set_data2(char *name, int wait_msec, void *data, int len, bool logOutput);
   int ioctl_wr_data(int cmd, int wait_msec, void *data, int len);
   int ioctl_rd_data(int cmd, int wait_msec, void *data, int len);
   int ioctl_cmd(int cmd, const char *name, int wait_msec, int wr, void *data, int dlen, bool logOutput = false);
@@ -105,8 +99,6 @@ class W4343WCard { //: public Event , public T4_SDIO {
   uint32_t backplaneWindow_write32(uint32_t addr, uint32_t val);
 
   void printResponse(bool return_value);
-  void printMACAddress(uint8_t * data);
-  void printSSID(uint8_t * data);
   void ioctl_err_display(int retval);
   IMXRT_USDHC_t *m_psdhc;
 
@@ -160,12 +152,7 @@ private:
   bool uploadNVRAM(size_t nvRAMSize, uintptr_t source);
   bool uploadCLM();
 
-  bool isBusyDat();
-  bool isBusyFifoRead();
-  bool isBusyFifoWrite();
   bool isBusyTransferComplete();
-
-  bool waitTransferComplete();
 
   /////////////////////////////////////////////////////
   // lets move global (static) variables into class instance.

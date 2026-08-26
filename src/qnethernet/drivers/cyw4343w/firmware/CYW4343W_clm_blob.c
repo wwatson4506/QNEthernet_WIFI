@@ -13,14 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-/*
-#include "wiced_resource.h"
-
-#if defined(CY_STORAGE_WIFI_DATA)
-CY_SECTION_WHD(CY_STORAGE_WIFI_DATA) __attribute__((used))
-#endif
-const unsigned char wifi_firmware_clm_blob_data[7222] = {
-*/
 #ifndef CLM_BLOB
 #define CLM_BLOB
 
@@ -30,9 +22,9 @@ extern "C" {
 
 #include <Arduino.h>
 
-#define FIRMWARE_CLM_LEN 7222
+#define FIRMWARE_CLM_LEN_W 7222
 
-const unsigned char clm_data[FIRMWARE_CLM_LEN] = {
+const unsigned char clm_data_4343W[FIRMWARE_CLM_LEN_W] = {
         66, 76, 79, 66, 60, 0, 0, 0, 98, 110, 230, 202, 1, 0, 0, 0, 2, 0, 0,
         0, 0, 0, 0, 0, 60, 0, 0, 0, 246, 27, 0, 0, 241, 7, 208, 131, 0, 0, 0,
         0, 0, 0, 0, 0, 50, 28, 0, 0, 4, 0, 0, 0, 42, 255, 237, 159, 0, 0, 0,
