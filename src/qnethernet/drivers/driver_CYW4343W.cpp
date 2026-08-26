@@ -18,7 +18,7 @@
 #include "lwip/err.h"
 #include "lwip/stats.h"
 
-#include "qnethernet/internal/macro_funcs.h"
+//#include "qnethernet/internal/macro_funcs.h"
 #include "qnethernet/platforms/pgmspace.h"
 
 #include "cyw4343w/src/cyw43_T4_SDIO.h"

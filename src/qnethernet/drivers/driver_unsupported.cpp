@@ -70,7 +70,7 @@ struct pbuf* proc_input(struct netif* const netif, const int counter) {
   (void)netif;
   (void)counter;
 
-  return NULL;
+  return nullptr;
 }
 
 void poll(struct netif* const netif) {
@@ -109,7 +109,7 @@ bool output_frame(const void* const frame, const size_t len) {
 #if !QNETHERNET_ENABLE_PROMISCUOUS_MODE
 
 bool set_incoming_mac_address_allowed(const uint8_t mac[ETH_HWADDR_LEN],
-                                             const bool allow) {
+                                      const bool allow) {
   (void)mac;
   (void)allow;
 

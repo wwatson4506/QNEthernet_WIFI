@@ -32,9 +32,6 @@
 
 #include <Arduino.h>
 #include <SPI.h>
-#if defined(TEENSYDUINO) && defined(__IMXRT1062__)
-#include <imxrt.h>
-#endif  // defined(TEENSYDUINO) && defined(__IMXRT1062__)
 
 #include "lwip/debug.h"
 #include "lwip/def.h"
@@ -244,7 +241,10 @@ static struct InputBuf {
   // This decreases the size of the buffer.
   uint16_t readFrameLen() {
     uint16_t v;
-    LWIP_ASSERT("Expected valid frame length", buf.read(&v, 2) == 2);
+    const size_t read = buf.read(&v, 2);
+    if (read != 2) {
+      LWIP_PLATFORM_ASSERT("Expected valid frame length");
+    }
     return ntohs(v);
   }
 } s_inputBuf BUFFER_DMAMEM;
@@ -813,7 +813,7 @@ static inline uint16_t readFrameLen(const uint8_t* const buf) {
   return ntohs(v);
 }
 
-// Keeps reading the RX buffer unti local buffer is full or no data. This will
+// Keeps reading the RX buffer until local buffer is full or no data. This will
 // return false when there's either nothing in the RX buffer or the local buffer
 // is full;
 static bool readAndScan() {
@@ -869,9 +869,13 @@ static bool readAndScan() {
           retval = false;
           break;
         }
-        LWIP_ASSERT(
-            "Expeceted complete buffer write",
-            s_inputBuf.buf.write(&s_inputBuf.rxBuf[end], frameLen) == frameLen);
+
+        const size_t written =
+            s_inputBuf.buf.write(&s_inputBuf.rxBuf[end], frameLen);
+        if (written != frameLen) {
+          LWIP_PLATFORM_ASSERT("Expeceted complete buffer write");
+        }
+
         LINK_STATS_INC(link.recv);
       } else {
         LINK_STATS_INC(link.drop);
@@ -895,7 +899,7 @@ struct pbuf* proc_input(struct netif* const netif, const int counter) {
   (void)counter;
 
   if (s_initState != EnetInitStates::kInitialized) {
-    return NULL;
+    return nullptr;
   }
 
   // Make a block for the SPITransaction RAII
@@ -908,22 +912,27 @@ struct pbuf* proc_input(struct netif* const netif, const int counter) {
 
   // Check for buffered data
   if (s_inputBuf.buf.empty()) {
-    return NULL;
+    return nullptr;
   }
 
   // At this point, we can assume data in s_inputBuf.buf is correct
 
   const uint16_t frameLen = s_inputBuf.readFrameLen();
+  // Note: This will be >= 2 because that's guaranteed in readAndScan()
 
   // Process the frame
+  const uint16_t frameSize = static_cast<uint16_t>(frameLen - 2);
   struct pbuf* const p =
-      pbuf_alloc(PBUF_RAW, static_cast<uint16_t>(frameLen - 2), PBUF_POOL);
+      pbuf_alloc(PBUF_RAW, frameSize + ETH_PAD_SIZE, PBUF_POOL);
   if (p == nullptr) {
     LINK_STATS_INC(link.drop);
     LINK_STATS_INC(link.memerr);
+    (void)s_inputBuf.buf.read((void*)nullptr, frameSize);
   } else {
-    LWIP_ASSERT("Expected space for pbuf fill",
-                s_inputBuf.buf.read(p) == ERR_OK);
+    const err_t read = s_inputBuf.buf.read(p, ETH_PAD_SIZE);
+    if (read != ERR_OK) {
+      LWIP_PLATFORM_ASSERT("Expected space for pbuf fill");
+    }
   }
   return p;
 }
@@ -1014,11 +1023,6 @@ err_t output(struct pbuf* const p) {
     return ERR_IF;
   }
 
-#if ETH_PAD_SIZE
-  LWIP_ASSERT("Expected removed ETH_PAD_SIZE header",
-              pbuf_remove_header(p, ETH_PAD_SIZE) == 0);
-#endif  // ETH_PAD_SIZE
-
   // Shouldn't need this check:
   // if (p->tot_len > kMaxFrameLen) {
   //   LINK_STATS_INC(link.drop);
@@ -1026,15 +1030,17 @@ err_t output(struct pbuf* const p) {
   //   return ERR_BUF;
   // }
 
-  const uint16_t copied = pbuf_copy_partial(p, s_frameBuf, p->tot_len, 0);
-  if (copied != p->tot_len) {
+  const uint16_t frameSize = p->tot_len - ETH_PAD_SIZE;
+  const uint16_t copied =
+      pbuf_copy_partial(p, s_frameBuf, frameSize, ETH_PAD_SIZE);
+  if (copied != frameSize) {
     LINK_STATS_INC(link.drop);
     LINK_STATS_INC(link.err);
     return ERR_BUF;
   }
 
   SPITransaction spiTransaction;
-  return send_frame(p->tot_len);
+  return send_frame(frameSize);
 }
 
 #if QNETHERNET_ENABLE_RAW_FRAME_SUPPORT
@@ -1057,7 +1063,7 @@ bool output_frame(const void* const frame, const size_t len) {
 #if !QNETHERNET_ENABLE_PROMISCUOUS_MODE
 
 bool set_incoming_mac_address_allowed(const uint8_t mac[ETH_HWADDR_LEN],
-                                             const bool allow) {
+                                      const bool allow) {
   if (mac == nullptr) {
     return false;
   }
