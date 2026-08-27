@@ -934,8 +934,6 @@ bool W4343WCard::begin(bool SDIOused, int8_t wlOnPin, int8_t wlIrqPin, int8_t ex
   fUseSDIO2 = SDIOused;
   m_wlIrqPin = wlIrqPin;
   uint8_t readResponse;
-//printf("sizeof(firmware_clm) = %lu\n",sizeof(firmware_clm));
-//while(1);  
 #if INIT_DEBUG_MODE == true
   printf("===========================\nCYW4343W Card::begin: %s\n===========================\n",
                  fUseSDIO2 ? "SDIO2" : "SDIO");
