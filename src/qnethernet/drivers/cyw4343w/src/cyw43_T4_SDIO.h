@@ -168,6 +168,7 @@ private:
   volatile uint32_t m_irqstat;
   uint32_t m_WiFiClkKhz = 0;
   uint32_t m_ocr;
+  uint32_t m_wifi_device = (uint32_t)43439;
 };
 
 extern W4343WCard WIFIcard;
