@@ -22,7 +22,8 @@ int WIFIinit(const char *ssID, const char *passphrase, int security) {
   // WL_REG_ON pin 
   // WL_IRQ pin (-1 to ignore)
   // EXT_LPO pin (optional, -1 to ignore)
-  // WIFIcard.begin(true, 30, 29, -1). 
+  // WIFIcard.begin(true, 33, 34, -1) for CYW4343W board or 
+  // WIFIcard.begin(true, 30, 29, -1) for CYW43439 board. 
   //////////////////////////////////////////
   if (WIFIcard.begin(true, REG_ON, WL_IRQ, -1) == true) { 
     WIFIcard.wifiSetup(); // Only needed for wifi scan usage

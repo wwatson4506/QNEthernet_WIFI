@@ -36,14 +36,14 @@
 //Remove this define to use built-in internal LPO in 4343W
 //#define USE_EXTERNAL_LPO
 void cwydump(unsigned char *memory, unsigned int len);
-
+#if WIFI_DEVICE == CYW4343W
 //==============================================================================
 // CYW4343W firmware files.
 //==============================================================================
 ///////////////
 //Firmware file 
 ///////////////
-#include "../firmware/CYW4343W_SDIO_bin.h"
+#include "../firmware/CYW4343W_SDIO_bin.c"
 ////////////
 //NVRAM file
 /////////////
@@ -51,31 +51,32 @@ void cwydump(unsigned char *memory, unsigned int len);
 //////////
 //CLM file
 //////////
-#include "../firmware/CYW4343W_clm_blob.h"
+#include "../firmware/CYW4343W_clm_blob.c"
 //==============================================================================
-
+#else
 //==============================================================================
 // CYW43439 Firmware files.
 //==============================================================================
 ///////////////
 //Firmware file 
 ///////////////
-#include "../firmware/FW_43439-bin.h"
+#include "../firmware/FW_43439-bin.c"
 //////////
 //CLM file
 //////////
-#include "../firmware/CLM_43439-bin.h"
+#include "../firmware/CLM_43439-bin.c"
 ////////////
 //NVRAM file
 /////////////
 #include "../firmware/wifi_43439_NVRAM.h"
 //==============================================================================
-
+#endif
 //==============================================================================
 // MAC address stuff.
 //==============================================================================
 uint8_t my_mac[MACLEN];    // Internal MAC usage.
 //==============================================================================
+
 
 //==============================================================================
 //------------------------------------------------------------------------------
@@ -819,23 +820,21 @@ bool W4343WCard::uploadNVRAM(size_t nvRAMSize, uintptr_t source) {
 // Upload CLM to CYW4343x chip.
 //==============================================================================
 bool W4343WCard::uploadCLM() {
-  uint32_t datalen = 0;
   brcmf_dload_data_le *chunk_buf;
-
-  if(m_wifi_device == CYW43439) {
-    datalen = FIRMWARE_CLM_LEN_9;
-  } else {
-    datalen = FIRMWARE_CLM_LEN_W;
-  }
+#if WIFI_DEVICE == CYW43439
+  int32_t datalen = FIRMWARE_CLM_LEN_9;
+#else
+  int32_t datalen = FIRMWARE_CLM_LEN_W;
+#endif
   uint32_t cumulative_len = 0;
   uint32_t ret = 0;
 
 #if INIT_DEBUG_MODE == true
-  if(m_wifi_device == CYW43439) {
+  #if WIFI_DEVICE == CYW43439
     printf(SER_CYAN "Uploading CLM, size: %d\n" SER_RESET, FIRMWARE_CLM_LEN_9);
-  } else {
+  #else
     printf(SER_CYAN "Uploading CLM, size: %d\n" SER_RESET, FIRMWARE_CLM_LEN_W);
-  }
+  #endif
 #endif
   chunk_buf = (brcmf_dload_data_le *)malloc(sizeof(*chunk_buf) + MAX_CHUNK_LEN - 1);
   chunk_buf->dload_type = DL_TYPE_CLM;
@@ -848,21 +847,21 @@ bool W4343WCard::uploadCLM() {
     } else if(datalen <= MAX_CHUNK_LEN) {
 	  chunk_buf->flag |= DL_END;
 	}
-  if(m_wifi_device == CYW43439) {
+#if WIFI_DEVICE == CYW43439
 	memcpy(chunk_buf->data, clm_data_9 + cumulative_len, chunk_buf->len);
-  } else {
+#else
 	memcpy(chunk_buf->data, clm_data_4343W + cumulative_len, chunk_buf->len);
-  }
+#endif
 	ret = ioctl_set_data("clmload", 1500, chunk_buf, sizeof(brcmf_dload_data_le) + chunk_buf->len - 1, false);
 	cumulative_len += chunk_buf->len;
 	datalen -= chunk_buf->len;
   } while((datalen > 0) && (ret == 1));
 #if INIT_DEBUG_MODE == true
-  if(m_wifi_device == CYW43439) {
+  #if WIFI_DEVICE == CYW43439
     printf(SER_CYAN "CLM uploaded %ld/%d result: %ld\n" SER_RESET, cumulative_len, FIRMWARE_CLM_LEN_9, ret);
-  } else {
+#else
     printf(SER_CYAN "CLM uploaded %ld/%d result: %ld\n" SER_RESET, cumulative_len, FIRMWARE_CLM_LEN_W, ret);
-  }
+#endif
 #endif
   return ret;
 }
@@ -935,6 +934,8 @@ bool W4343WCard::begin(bool SDIOused, int8_t wlOnPin, int8_t wlIrqPin, int8_t ex
   fUseSDIO2 = SDIOused;
   m_wlIrqPin = wlIrqPin;
   uint8_t readResponse;
+//printf("sizeof(firmware_clm) = %lu\n",sizeof(firmware_clm));
+//while(1);  
 #if INIT_DEBUG_MODE == true
   printf("===========================\nCYW4343W Card::begin: %s\n===========================\n",
                  fUseSDIO2 ? "SDIO2" : "SDIO");
@@ -1045,8 +1046,7 @@ bool W4343WCard::begin(bool SDIOused, int8_t wlOnPin, int8_t wlIrqPin, int8_t ex
   
   // NOTE: The CYW43439 and CYW4343W may have issues at 50'000 KHz clock
   //       speed if using long connecting wires.
-  //       If so, reduce to 33'000 in "misc_defs.h".
-  //       May be set to 33'000 below if using a CYW4343W device.
+  //       If so, reduce to 33'000 KHz in "misc_defs.h".
   kHzWiFiClk = KHZ_WIFI_CLK; //33'000 or 50'000.
 
   //Disable GPIO
@@ -1068,31 +1068,9 @@ bool W4343WCard::begin(bool SDIOused, int8_t wlOnPin, int8_t wlIrqPin, int8_t ex
   //This was 4 byte read in the Zero code, causes extra bytes in the buffer - only if first CMD53 executed. 
   //Changing size to < 4 "fixes" it. Debug code sdio.c 3909 formats value as %4x, so use size 2
   cardCMD53_read(SD_FUNC_BAK, SB_32BIT_WIN, u32d.bytes, 2);
-  m_wifi_device = u32d.uint32 & 0xFFFF;
 #if INIT_DEBUG_MODE == true
-  printf(SER_GREEN "*************\nCardID: %ld\n*************\n" SER_RESET, m_wifi_device);
+  printf(SER_GREEN "*************\nCardID: %ld\n*************\n" SER_RESET, u32d.uint32 & 0xFFFF);
 #endif
-  if(REDUCE_CYW4343W_SPEED == true) { // Force speed to 33'00
-    //Disable GPIO
-    enableSDIO(false);
-    //Set clock
-    setWiFiclk(33000);
-    //Enable GPIO
-    enableSDIO(true);
-  } else if((m_wifi_device == CYW4343W) && (kHzWiFiClk == 50000)) {
-   // Else, check if using a CYW4343W device and if SDHC speed is 50'000
-   // and reset to 33'000. This may change if not using interconnect wires. 
-    //Disable GPIO
-    enableSDIO(false);
-    //Set clock
-    setWiFiclk(33000);
-    //Enable GPIO
-    enableSDIO(true);
-  }
-#if INIT_DEBUG_MODE == true
-    printf(SER_TRACE "SDHC bus reset to 4-bit, speed set to %dMHz\n" SER_RESET, 33000 / 1000);
-#endif
-
 #if USE_CYW4343W == false // Do 'wifiSetup' here else do 'wifiSetup' in QNEthernet.
   //============================
   // Setup the WiFi card (1DX) =
@@ -1229,17 +1207,17 @@ bool W4343WCard::wifiSetup(void) {
 //==============================================================================
 // Validate and upload NVRAM 
 //==============================================================================
-  if(m_wifi_device == CYW43439) {
-    uploadFirmware(FIRMWARE_LEN_9, (uintptr_t)firmware_bin_9);
-    size_t wifi_nvram_len = sizeof(wifi_nvram_9);
-    uintptr_t clm_p = reinterpret_cast<uintptr_t>(wifi_nvram_9); 
-    uploadNVRAM(wifi_nvram_len, clm_p);
-  } else {
-    uploadFirmware(FIRMWARE_LEN_W, (uintptr_t)firmware_4343W);
-    size_t wifi_nvram_len = sizeof(wifi_nvram_w);
-    uintptr_t clm_p = reinterpret_cast<uintptr_t>(wifi_nvram_w); 
-    uploadNVRAM(wifi_nvram_len, clm_p);
-  }
+#if WIFI_DEVICE == CYW43439
+  uploadFirmware(FIRMWARE_LEN_9, (uintptr_t)firmware_bin_9);
+  size_t wifi_nvram_len = sizeof(wifi_nvram_9);
+  uintptr_t clm_p = reinterpret_cast<uintptr_t>(wifi_nvram_9); 
+  uploadNVRAM(wifi_nvram_len, clm_p);
+#else
+  uploadFirmware(FIRMWARE_LEN_W, (uintptr_t)firmware_4343W);
+  size_t wifi_nvram_len = sizeof(wifi_nvram_w);
+  uintptr_t clm_p = reinterpret_cast<uintptr_t>(wifi_nvram_w); 
+  uploadNVRAM(wifi_nvram_len, clm_p);
+#endif
 //==============================================================================
 
   // This prints the last 44 bytes of NVRAM upload. Comment out for now.
