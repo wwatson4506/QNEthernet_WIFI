@@ -33,7 +33,8 @@
 
 #define MAX_HANDLERS     20
 #define MAX_EVENT_STATUS 16
-#define TXDATA_LEN       1600
+#define TXDATA_LEN       2048 //1600
+#define RXDATA_LEN       2048 //1600
 
 /* IP address is an array of bytes, to avoid misalignment problems */
 #define IPLEN    4
@@ -274,7 +275,7 @@ private:
   void print_mac_addr(MACADDR mac);
   uint8_t txbuff[TXDATA_LEN];
   uint8_t sd_tx_seq;
-  uint8_t eventbuf[1600];
+  uint8_t eventbuf[RXDATA_LEN];
   uint8_t event_mask[EVENT_MAX / 8];
   ETH_EVENT_FRAME *eep = (ETH_EVENT_FRAME *)eventbuf;
   EVT_STR *currentE_evts;
